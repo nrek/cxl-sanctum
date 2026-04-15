@@ -1,0 +1,266 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { apiFetch, Project, ServerGroup } from "@/lib/api";
+import Modal from "@/components/Modal";
+import CopyButton from "@/components/CopyButton";
+import Tooltip from "@/components/Tooltip";
+
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [ungrouped, setUngrouped] = useState<ServerGroup[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const [deleteUngrouped, setDeleteUngrouped] = useState<ServerGroup | null>(
+    null
+  );
+  const [deleteUngroupedConfirm, setDeleteUngroupedConfirm] = useState("");
+  const [deletingUngrouped, setDeletingUngrouped] = useState(false);
+
+  const load = useCallback(() => {
+    apiFetch<Project[]>("/projects/").then(setProjects);
+    apiFetch<ServerGroup[]>("/server-groups/?ungrouped=1").then(setUngrouped);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const apiBase =
+    typeof window !== "undefined"
+      ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+      : "";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await apiFetch("/projects/", {
+      method: "POST",
+      body: JSON.stringify(form),
+    });
+    setModalOpen(false);
+    setForm({ name: "", description: "" });
+    load();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this project and all its environments?")) return;
+    await apiFetch(`/projects/${id}/`, { method: "DELETE" });
+    load();
+  };
+
+  const handleDeleteUngrouped = async () => {
+    if (!deleteUngrouped || deleteUngroupedConfirm !== deleteUngrouped.name) {
+      return;
+    }
+    setDeletingUngrouped(true);
+    try {
+      await apiFetch(`/server-groups/${deleteUngrouped.id}/`, {
+        method: "DELETE",
+      });
+      setDeleteUngrouped(null);
+      setDeleteUngroupedConfirm("");
+      load();
+    } finally {
+      setDeletingUngrouped(false);
+    }
+  };
+
+  return (
+    <div className="p-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-sanctum-mist">Projects</h1>
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="btn-primary"
+        >
+          <i className="fa-solid fa-circle-plus" aria-hidden />
+          New Project
+        </button>
+      </div>
+
+      <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {projects.map((p) => (
+          <div key={p.id} className="sanctum-card relative p-5">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <Link
+                href={`/projects/${p.id}`}
+                className="text-lg font-semibold text-sanctum-accent hover:text-sanctum-mist"
+              >
+                {p.name}
+              </Link>
+              <Tooltip label="Delete project">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p.id)}
+                  className="icon-btn-danger -mr-1 -mt-1"
+                  aria-label="Delete project"
+                >
+                  <i className="fa-solid fa-trash" aria-hidden />
+                </button>
+              </Tooltip>
+            </div>
+            <p className="mb-3 line-clamp-2 text-sm text-sanctum-muted">
+              {p.description || "No description"}
+            </p>
+            <div className="flex gap-4 text-sm text-sanctum-muted">
+              <span>{p.environment_count ?? 0} environments</span>
+              <span>{p.access_row_count ?? 0} access rows</span>
+            </div>
+          </div>
+        ))}
+        {projects.length === 0 && (
+          <p className="col-span-full py-8 text-center text-sanctum-muted">
+            No projects yet. Create one to group Development, Staging, and
+            Production servers.
+          </p>
+        )}
+      </div>
+
+      {ungrouped.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-sanctum-mist">
+            Ungrouped environments
+          </h2>
+          <p className="mb-4 text-sm text-sanctum-muted">
+            These server groups are not under a project. Assign them when you
+            create or open a project, or keep them here for ad-hoc servers.
+          </p>
+          <div className="space-y-2">
+            {ungrouped.map((g) => {
+              const url = `${apiBase}/provision/${g.provision_token}/`;
+              const cmd = `curl -sS ${url} | sudo bash`;
+              return (
+                <div
+                  key={g.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sanctum-line/20 bg-sanctum-surface px-4 py-3"
+                >
+                  <span className="font-medium text-sanctum-mist">{g.name}</span>
+                  <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                    <code className="max-w-md truncate text-xs text-sanctum-muted">
+                      {cmd}
+                    </code>
+                    <CopyButton text={cmd} />
+                    <Tooltip label="Remove this ungrouped environment">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteUngroupedConfirm("");
+                          setDeleteUngrouped(g);
+                        }}
+                        className="icon-btn-danger shrink-0"
+                        aria-label={`Remove ${g.name}`}
+                      >
+                        <i className="fa-solid fa-trash" aria-hidden />
+                      </button>
+                    </Tooltip>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="New Project"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Name
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+              placeholder="e.g. Client Acme or Our Product"
+              className="sanctum-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Description
+            </label>
+            <textarea
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+              rows={3}
+              className="sanctum-input min-h-[5rem]"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="btn-ghost"
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary">
+              <i className="fa-solid fa-circle-plus" aria-hidden />
+              Create
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={deleteUngrouped !== null}
+        onClose={() => {
+          setDeleteUngrouped(null);
+          setDeleteUngroupedConfirm("");
+        }}
+        title="Remove ungrouped environment"
+      >
+        {deleteUngrouped ? (
+          <div className="space-y-4">
+            <p className="text-sm text-sanctum-muted">
+              Removes{" "}
+              <strong className="text-sanctum-mist">{deleteUngrouped.name}</strong>{" "}
+              and its assignments and server records. Type the name to confirm.
+            </p>
+            <input
+              type="text"
+              value={deleteUngroupedConfirm}
+              onChange={(e) => setDeleteUngroupedConfirm(e.target.value)}
+              placeholder={deleteUngrouped.name}
+              className="sanctum-input"
+              autoComplete="off"
+              aria-label="Type environment name to confirm"
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteUngrouped(null);
+                  setDeleteUngroupedConfirm("");
+                }}
+                className="btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  deletingUngrouped ||
+                  deleteUngroupedConfirm !== deleteUngrouped.name
+                }
+                onClick={() => void handleDeleteUngrouped()}
+                className="btn-danger"
+              >
+                {deletingUngrouped ? "Removing…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  );
+}
