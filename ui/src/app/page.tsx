@@ -151,6 +151,29 @@ export default function HomePage() {
             </p>
           ) : null}
         </div>
+
+        <footer className="mt-16 flex flex-col items-center gap-2 border-t border-white/5 pt-8 text-center text-xs text-slate-500">
+          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <Link href="/privacy" className="link-accent">
+              Privacy Policy
+            </Link>
+            <span aria-hidden>·</span>
+            <Link href="/terms" className="link-accent">
+              Terms of Use
+            </Link>
+            <span aria-hidden>·</span>
+            <a
+              href="mailto:support@craftxlogic.com"
+              className="link-accent"
+            >
+              support@craftxlogic.com
+            </a>
+          </nav>
+          <p>
+            &copy; {new Date().getFullYear()} Craft and Logic, Inc. — 1321
+            Upland Dr., PMB 20350, Houston, Texas 77043, US
+          </p>
+        </footer>
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ const PUBLIC_PATHS = new Set([
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/privacy",
+  "/terms",
 ]);
 
 /** Routes that do not require auth (marketing + auth flows). */
