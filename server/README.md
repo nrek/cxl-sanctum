@@ -208,6 +208,7 @@ sudo systemctl restart sanctum-api sanctum-ui
 - **DNS can't resolve the host** — verify with `dig sanctum.example.com` or `nslookup`.
 - **Self-signed / expired cert** — curl will refuse the connection. Fix the cert or (testing only) use `curl -k`.
 - **Script runs but heartbeat missing** — the heartbeat URL may be `http://` instead of `https://` if the reverse proxy isn't forwarding `X-Forwarded-Proto`. See network requirements below.
+- **`/var/log/sanctum.log` not found** — this file only exists on managed nodes, not on the Sanctum API host. It is created on first provision run. If missing on a node, the provision script has never executed there.
 
 ### Network requirements
 
