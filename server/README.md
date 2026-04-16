@@ -175,6 +175,59 @@ All endpoints except provision and heartbeat require token authentication (`Auth
 | POST | `/api/heartbeat/<token>/` | token | Server check-in |
 | GET | `/api/stats/` | admin | `projects`, `members`, `servers_online`, `recent_activity` |
 
+## Troubleshooting server connections
+
+### Checking services on the Sanctum host
+
+```bash
+sudo systemctl status sanctum-api    # Gunicorn / Django
+sudo systemctl status sanctum-ui     # Next.js standalone
+sudo systemctl status apache2        # or nginx — reverse proxy
+sudo systemctl status postgresql     # database (if using Postgres)
+```
+
+Restart after a deploy:
+
+```bash
+sudo systemctl restart sanctum-api sanctum-ui
+```
+
+### Log files
+
+| Log | Location |
+|-----|----------|
+| **Provision activity (on nodes)** | `/var/log/sanctum.log` |
+| **Gunicorn / Django** | `journalctl -u sanctum-api -f` |
+| **Next.js UI** | `journalctl -u sanctum-ui -f` |
+| **Reverse proxy (Apache)** | `/var/log/apache2/error.log` |
+| **Reverse proxy (nginx)** | `/var/log/nginx/error.log` |
+
+### Common curl issues on nodes
+
+- **HTTPS redirect swallowed** — use `curl -sSL` (the `-L` follows redirects). Without it, an HTTP→HTTPS redirect silently fails.
+- **DNS can't resolve the host** — verify with `dig sanctum.example.com` or `nslookup`.
+- **Self-signed / expired cert** — curl will refuse the connection. Fix the cert or (testing only) use `curl -k`.
+- **Script runs but heartbeat missing** — the heartbeat URL may be `http://` instead of `https://` if the reverse proxy isn't forwarding `X-Forwarded-Proto`. See network requirements below.
+
+### Network requirements
+
+**Inbound (Sanctum host):**
+
+| Port | Protocol | Source | Purpose |
+|------|----------|--------|---------|
+| 443 | HTTPS | Managed nodes, browsers | Provision scripts, heartbeats, dashboard |
+| 80 | HTTP | Public | Redirect to 443 (certbot validation) |
+
+**Outbound (managed nodes):**
+
+| Port | Protocol | Destination | Purpose |
+|------|----------|-------------|---------|
+| 443 | HTTPS | Sanctum host | `curl` to fetch provision script and send heartbeat |
+
+No other ports are required. Nodes only need outbound HTTPS to the Sanctum host. The Sanctum host does not initiate connections to nodes.
+
+**Reverse proxy must forward** `Host`, `X-Forwarded-Proto`, and `X-Forwarded-For` headers to Gunicorn so Django generates correct `https://` URLs in the provision script. Without `X-Forwarded-Proto: https` on the :443 vhost, heartbeat URLs will be `http://` and silently fail on nodes that redirect HTTP→HTTPS.
+
 ## Security notes
 
 - Provision tokens authenticate servers. Treat them like API keys.
