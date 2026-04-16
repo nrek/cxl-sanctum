@@ -51,7 +51,26 @@ export async function login(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
-  if (!res.ok) throw new ApiError("Invalid credentials", res.status);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    let msg = "Invalid username or password";
+    if (res.status === 404 || res.status === 502 || res.status === 503) {
+      msg = `Sign-in request failed (${res.status}). Check NEXT_PUBLIC_API_URL (must be …/api) and that the API is up.`;
+    } else if (res.status >= 500) {
+      msg = `Server error (${res.status}). Try again or check API logs.`;
+    } else if (body) {
+      try {
+        const j = JSON.parse(body) as { non_field_errors?: string[]; detail?: string };
+        const bit =
+          j.non_field_errors?.[0] ||
+          (typeof j.detail === "string" ? j.detail : null);
+        if (bit) msg = bit;
+      } catch {
+        if (body.length < 300) msg = body;
+      }
+    }
+    throw new ApiError(msg, res.status);
+  }
   const data = await res.json();
   localStorage.setItem("sanctum_token", data.token);
   return data.token;

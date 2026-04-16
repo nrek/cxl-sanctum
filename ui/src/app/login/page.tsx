@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { ApiError, login } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,8 +19,12 @@ export default function LoginPage() {
     try {
       await login(username, password);
       router.push("/dashboard");
-    } catch {
-      setError("Invalid username or password");
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Could not reach the server. Check your connection."
+      );
     } finally {
       setLoading(false);
     }
