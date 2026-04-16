@@ -6,7 +6,8 @@
 #   /opt/sanctum/venv
 #   /etc/sanctum.env          (optional — DB and secrets)
 #
-#   ./sanctum-update.sh
+#   ./sanctum-update.sh            # pull, then build/restart only if anything changed
+#   ./sanctum-update.sh --build    # skip git pull; force pip+migrate+npm build+restart
 #   ./sanctum-update.sh --help
 #
 # Paths (override with env):
@@ -23,13 +24,18 @@ set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,20p' "$0" | sed 's/^# //' | sed 's/^#//'
+  sed -n '2,22p' "$0" | sed 's/^# //' | sed 's/^#//'
 }
+
+FORCE_BUILD=0
 
 case "${1:-}" in
   --help|-h)
     usage
     exit 0
+    ;;
+  --build)
+    FORCE_BUILD=1
     ;;
   "")
     ;;
@@ -133,19 +139,24 @@ preflight_writable "$CORE_REPO" "repo"
 preflight_writable "$CORE_REPO/.git" ".git directory"
 preflight_git_trust "$CORE_REPO"
 
-CHANGED_CORE=0
+RUN_BUILD=0
 
-if prompt_yn "Pull latest from git (cxl-sanctum)?" Y; then
+if [[ "$FORCE_BUILD" -eq 1 ]]; then
+  echo ">>> --build: skipping git pull; forcing rebuild of current checkout"
+  echo "    at $(git -C "$CORE_REPO" rev-parse --short HEAD) on $(git -C "$CORE_REPO" rev-parse --abbrev-ref HEAD)"
+  RUN_BUILD=1
+elif prompt_yn "Pull latest from git (cxl-sanctum)?" Y; then
   echo ">>> git pull"
   if pull_and_changed "$CORE_REPO"; then
-    CHANGED_CORE=1
+    RUN_BUILD=1
     echo "    new commits pulled"
   else
     echo "    already up to date"
+    echo "    (re-run with --build to force pip + migrate + npm build + restart)"
   fi
 fi
 
-if [[ "$CHANGED_CORE" -eq 1 ]]; then
+if [[ "$RUN_BUILD" -eq 1 ]]; then
   preflight_writable "$VENV" "venv"
   echo
   echo ">>> pip install (server/requirements.txt)"
@@ -174,5 +185,5 @@ if [[ "$CHANGED_CORE" -eq 1 ]]; then
   echo "Done."
 else
   echo
-  echo "No new commits — skipped pip, migrate, npm, and restart."
+  echo "Nothing to do — use --build to rebuild the current checkout without pulling."
 fi
