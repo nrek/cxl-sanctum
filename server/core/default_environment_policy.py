@@ -1,8 +1,9 @@
 """
 Default OSS policy: unlimited environments.
 
-Override by setting ``SANCTUM_ENVIRONMENT_POLICY`` to another module that exports
-the same functions (see ``billing.sanctum_policy`` in cxl-sanctum-saas).
+Override by setting ``SANCTUM_ENVIRONMENT_POLICY`` to another Python module path
+that exports ``check_environment_creation`` and ``get_environment_limit`` with
+the same signatures as this module.
 """
 
 from __future__ import annotations

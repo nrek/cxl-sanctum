@@ -4,9 +4,7 @@ This directory is **`ui/`** in the **[cxl-sanctum](../README.md)** monorepo.
 
 Next.js dashboard for the Sanctum API (**`../server/`**) — manage teams, members, SSH keys, projects, and server-group access; copy provisioning commands for your hosts.
 
-This package is the **browser client only**. It talks to the REST API over HTTPS; it does not run provisioning scripts itself.
-
-Optional: try the product at **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** without self-hosting. For your own deployment, run this UI next to your API (see the server README).
+This package is the **browser client only**. It talks to the REST API over HTTPS; it does not run provisioning scripts itself. To try Sanctum without deploying the stack, use **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)**; for your own API, point `NEXT_PUBLIC_API_URL` at your deployment.
 
 ## Requirements
 
@@ -45,7 +43,7 @@ Set `NEXT_PUBLIC_API_URL` at **build time** to your public API base (e.g. `https
 | `NEXT_PUBLIC_API_URL` | Base URL of the Sanctum API (must include `/api` path as used by the client). Default: `http://localhost:8000/api`. |
 | `NEXT_PUBLIC_DONATION_URL` | Optional link shown in the UI (e.g. sponsorship page). |
 
-**Billing UI:** If the API exposes `/api/billing/status/` (hosted/SaaS stack), pricing and checkout controls appear. On pure self-hosted core, that route is absent and billing sections stay hidden.
+**Billing UI:** If the API exposes `/api/billing/status/` and related routes, pricing and checkout controls appear. Otherwise those sections stay hidden.
 
 ## Features (high level)
 

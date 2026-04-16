@@ -2,7 +2,7 @@
 
 Monorepo for **Sanctum**: open-source SSH access management—a Django REST API (**`server/`**) and a Next.js dashboard (**`ui/`**) you self-host to manage teams, SSH keys, projects, and provisioning scripts on your machines.
 
-Optional: try **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** without deploying your own stack.
+**Try it:** use **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** for a hosted experience (free tier), or **run this repo** on your own infrastructure for full control.
 
 ## Layout
 
@@ -11,7 +11,7 @@ Optional: try **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** wit
 | **`server/`** | Django + DRF API (`manage.py`, `sanctum/`, `core/`). |
 | **`ui/`** | Next.js 14 app (App Router, Tailwind). |
 
-A separate optional **hosted** product adds billing and usage tiers; see [server/docs/OSS_AND_HOSTED.md](server/docs/OSS_AND_HOSTED.md). **Self-hosted** installs use this repository only (no billing repo).
+Optional environment limits (e.g. cap the number of environments per workspace) are pluggable via **`SANCTUM_ENVIRONMENT_POLICY`** in Django settings—see [server/README.md](server/README.md).
 
 ## Development
 
@@ -74,13 +74,21 @@ Run the API and the UI as **long-lived services** behind a reverse proxy with HT
 
 Exact commands for your OS and process manager vary; the important part is **managed processes + reverse proxy + TLS**, consistent with how you run other web apps on the same host.
 
+### Updates (git pull → deps → migrate → UI build)
+
+The repo includes **[scripts/sanctum-update.sh](scripts/sanctum-update.sh)** for typical self-hosted servers: it prompts to pull **cxl-sanctum**, then runs `pip` for `server/`, `migrate` from `server/manage.py`, rebuilds `ui/` when there are new commits, and restarts `sanctum-api` / `sanctum-ui`. Copy it to the host, `chmod +x`, and set **`NEXT_PUBLIC_API_URL`** to your real public API base (e.g. `https://sanctum.example.com/api`) before running.
+
+```bash
+export NEXT_PUBLIC_API_URL=https://your-domain.example.com/api
+/path/to/sanctum-update.sh
+```
+
 ## Documentation
 
 | Doc | Description |
 |-----|-------------|
 | [server/README.md](server/README.md) | API, provisioning, env vars, workflow, security notes. |
-| [ui/README.md](ui/README.md) | Frontend env vars, production build, billing UI behavior. |
-| [server/docs/OSS_AND_HOSTED.md](server/docs/OSS_AND_HOSTED.md) | Self-hosted core vs hosted SaaS (limits, billing). |
+| [ui/README.md](ui/README.md) | Frontend env vars, production build, optional billing UI when the API exposes it. |
 | [LICENSE](LICENSE) | MIT License. |
 | [SECURITY.md](SECURITY.md) | Reporting vulnerabilities; umbrella policy. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How we work in this monorepo. |

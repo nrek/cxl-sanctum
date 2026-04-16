@@ -20,4 +20,4 @@ Include: affected component, steps to reproduce, and impact (confidentiality / i
 - **HTTPS** is required for production deployments serving provision or heartbeat endpoints.
 - The provisioning script is intended to run as **root** on managed hosts; only fetch it from a URL you control and over TLS.
 
-For hosted/SaaS deployments that add Stripe and billing, see the internal **cxl-sanctum-saas** repository’s `SECURITY.md` as well.
+If you add **Stripe** or billing webhooks, protect webhook secrets, verify signatures, and never commit API keys or webhook signing secrets to version control.

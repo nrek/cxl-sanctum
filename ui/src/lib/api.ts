@@ -188,7 +188,7 @@ export function isLoggedIn(): boolean {
   return !!localStorage.getItem("sanctum_token");
 }
 
-/** GET /workspace/ — environment usage (core + SaaS). */
+/** GET /workspace/ — environment usage and optional limit. */
 export interface WorkspaceSummary {
   id: number;
   name: string;
@@ -252,7 +252,7 @@ export async function patchWorkspaceAdmin(
   });
 }
 
-/** GET /billing/status/ — hosted SaaS only; returns null on OSS / missing route. */
+/** GET /billing/status/ — returns null if the API does not expose billing routes. */
 export interface BillingStatus {
   workspace_id: number;
   plan: "free" | "pro";
@@ -270,7 +270,7 @@ export async function fetchBillingStatus(): Promise<BillingStatus | null> {
   }
 }
 
-/** POST /billing/checkout/ — Stripe Checkout URL for Pro (SaaS only). */
+/** POST /billing/checkout/ — Stripe Checkout URL when billing is enabled on the API. */
 export async function startProCheckout(): Promise<string> {
   const data = await apiFetch<{ url: string }>("/billing/checkout/", {
     method: "POST",
@@ -279,7 +279,7 @@ export async function startProCheckout(): Promise<string> {
   return data.url;
 }
 
-/** POST /billing/portal/ — Stripe Customer Portal URL (SaaS only). */
+/** POST /billing/portal/ — Stripe Customer Portal URL when billing is enabled on the API. */
 export async function openBillingPortal(returnUrl?: string): Promise<string> {
   const origin =
     typeof window !== "undefined" ? window.location.origin : "";

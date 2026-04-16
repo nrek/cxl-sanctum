@@ -131,5 +131,5 @@ SANCTUM_ENVIRONMENT_POLICY = os.environ.get(
     "core.default_environment_policy",
 )
 
-# "self_hosted" | "hosted" — informational for API clients (SaaS sets hosted).
+# "self_hosted" | "hosted" — informational for API clients (optional deployments may set hosted).
 SANCTUM_DEPLOYMENT_MODE = os.environ.get("SANCTUM_DEPLOYMENT_MODE", "self_hosted")

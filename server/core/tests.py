@@ -533,7 +533,7 @@ class APITests(TestCase):
 
 @override_settings(SANCTUM_ENVIRONMENT_POLICY="core.tests_env_policy_stub")
 class EnvironmentPolicyStubTests(TestCase):
-    """Max 6 environments (stub policy) — mirrors hosted SaaS free tier."""
+    """Max 6 environments (stub policy) — exercises limited-environment behavior."""
 
     def setUp(self):
         self.user = User.objects.create_user("policyuser", "pw")

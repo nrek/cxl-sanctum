@@ -4,7 +4,7 @@ This directory is **`server/`** in the **[cxl-sanctum](../README.md)** monorepo 
 
 Open-source SSH access management: one place to manage users, teams, and SSH public keys across **projects** and **server groups**, with servers pulling an idempotent provisioning script on a schedule (or ad hoc).
 
-You host this API yourself alongside the companion dashboard (**`../ui/`** in the monorepo), and point your machines at your own provision URLs. If you want to try Sanctum before deploying, **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** is available as a convenience—not required for self-hosting.
+You host this API yourself alongside the companion dashboard (**`../ui/`** in the monorepo), and point your machines at your own provision URLs. Prefer not to run servers? **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** offers a hosted Sanctum you can try first.
 
 **What it does:** user accounts, `authorized_keys`, and sudo membership—aligned from the dashboard and applied on target hosts via `curl | bash` (typically cron).
 
@@ -253,7 +253,6 @@ python manage.py test core
 | [LICENSE](LICENSE) | MIT License (full text). |
 | [SECURITY.md](SECURITY.md) | How to report vulnerabilities; operator security notes. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing workflow and expectations. |
-| [docs/OSS_AND_HOSTED.md](docs/OSS_AND_HOSTED.md) | Self-hosted core vs hosted SaaS (billing, environment limits). |
 
 The dashboard lives in **`../ui/`** (see `../ui/README.md`).
 
