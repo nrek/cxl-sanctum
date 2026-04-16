@@ -50,7 +50,7 @@ Set `NEXT_PUBLIC_API_URL` at **build time** to your public API base (e.g. `https
 - Authentication against the core API (token session in the browser)
 - Projects, environments (server groups), team × environment access matrix
 - Member and SSH key management
-- Provisioning command snippets for `curl | bash` / cron
+- Copy-paste snippets: one-shot `curl`, full `/etc/cron.d/sanctum` line, and heartbeat verification (see `../server/README.md`)
 
 Detailed workflows and API semantics live in **`../server/README.md`**.
 

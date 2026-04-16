@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { apiFetch, getApiBase, Project, ServerGroup } from "@/lib/api";
+import ProvisionSnippets from "@/components/ProvisionSnippets";
 import Modal from "@/components/Modal";
-import CopyButton from "@/components/CopyButton";
 import Tooltip from "@/components/Tooltip";
 
 export default function ProjectsPage() {
@@ -161,38 +161,43 @@ export default function ProjectsPage() {
             These server groups are not under a project. Assign them when you
             create or open a project, or keep them here for ad-hoc servers.
           </p>
-          <div className="space-y-2">
-            {ungrouped.map((g) => {
-              const url = `${apiBase}/provision/${g.provision_token}/`;
-              const cmd = `curl -sS ${url} | sudo bash`;
-              return (
-                <div
-                  key={g.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sanctum-line/20 bg-sanctum-surface px-4 py-3"
-                >
+          <p className="mb-3 text-xs leading-relaxed text-sanctum-muted">
+            If HTTPS to the API&apos;s public IP times out from inside the same VPC
+            (hairpin), map the API hostname to its private IP in{" "}
+            <code className="rounded bg-sanctum-line/15 px-1 text-sanctum-mist">
+              /etc/hosts
+            </code>
+            .
+          </p>
+          <div className="space-y-4">
+            {ungrouped.map((g) => (
+              <div
+                key={g.id}
+                className="rounded-lg border border-sanctum-line/20 bg-sanctum-surface px-4 py-3"
+              >
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium text-sanctum-mist">{g.name}</span>
-                  <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                    <code className="max-w-md truncate text-xs text-sanctum-muted">
-                      {cmd}
-                    </code>
-                    <CopyButton text={cmd} />
-                    <Tooltip label="Remove this ungrouped environment">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleteUngroupedConfirm("");
-                          setDeleteUngrouped(g);
-                        }}
-                        className="icon-btn-danger shrink-0"
-                        aria-label={`Remove ${g.name}`}
-                      >
-                        <i className="fa-solid fa-trash" aria-hidden />
-                      </button>
-                    </Tooltip>
-                  </div>
+                  <Tooltip label="Remove this ungrouped environment">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteUngroupedConfirm("");
+                        setDeleteUngrouped(g);
+                      }}
+                      className="icon-btn-danger shrink-0"
+                      aria-label={`Remove ${g.name}`}
+                    >
+                      <i className="fa-solid fa-trash" aria-hidden />
+                    </button>
+                  </Tooltip>
                 </div>
-              );
-            })}
+                <ProvisionSnippets
+                  apiBase={apiBase}
+                  token={g.provision_token}
+                  variant="dense"
+                />
+              </div>
+            ))}
           </div>
         </div>
       )}

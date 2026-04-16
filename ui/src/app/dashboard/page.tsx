@@ -212,9 +212,17 @@ export default function DashboardPage() {
       </div>
 
       <div className="sanctum-card p-6">
-        <h2 className="mb-4 text-lg font-semibold text-sanctum-mist">
+        <h2 className="mb-2 text-lg font-semibold text-sanctum-mist">
           Recent server activity
         </h2>
+        <p className="mb-4 text-xs text-sanctum-muted">
+          A server counts as online when its last heartbeat is within about 10
+          minutes. If a host never appears or stays stale, check{" "}
+          <code className="rounded bg-sanctum-line/15 px-1 text-sanctum-mist">
+            /etc/cron.d/sanctum
+          </code>
+          , the provision token, and DNS reachability to the API on 443.
+        </p>
         {!stats || stats.recent_activity.length === 0 ? (
           <p className="text-sm text-sanctum-muted">No heartbeats yet.</p>
         ) : (

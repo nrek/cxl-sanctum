@@ -98,18 +98,30 @@ Use **your** API base URL (where this server is reachable)—not localhost from 
 ### One-time run
 
 ```bash
-curl -sS https://YOUR_API_HOST/api/provision/<TOKEN> | sudo bash
+curl -sSL https://YOUR_API_HOST/api/provision/<TOKEN>/ | sudo bash
 ```
 
-Replace `YOUR_API_HOST` with the hostname (and path prefix, if any) where this Django app is exposed—for example `sanctum-api.example.com`.
+Replace `YOUR_API_HOST` with the hostname (and path prefix, if any) where this Django app is exposed—for example `sanctum-api.example.com`. Include the trailing `/` on the provision URL.
 
 ### Cron (recommended)
 
-Add to `/etc/cron.d/sanctum`:
+Create `/etc/cron.d/sanctum` with mode `0644`. The file **must end with a newline**; a missing newline or a bad user field can cause `cron` to ignore the file silently.
 
 ```
-*/5 * * * * root curl -sS https://YOUR_API_HOST/api/provision/<TOKEN> | bash
+*/5 * * * * root curl -sSL https://YOUR_API_HOST/api/provision/<TOKEN>/ | bash
 ```
+
+Use `-sSL` so `curl` follows HTTP→HTTPS redirects if anything in front of Django redirects.
+
+### Verify heartbeat
+
+After networking works, confirm the API accepts check-ins from the node:
+
+```bash
+curl -sSL -X POST "https://YOUR_API_HOST/api/heartbeat/<TOKEN>/" -d "hostname=$(hostname)"
+```
+
+Expect HTTP **200** and JSON containing `"status":"ok"`. The dashboard treats a server as **online** when its last heartbeat was within about **10 minutes**.
 
 ### What the script does
 
@@ -207,6 +219,7 @@ sudo systemctl restart sanctum-api sanctum-ui
 
 - **HTTPS redirect swallowed** — use `curl -sSL` (the `-L` follows redirects). Without it, an HTTP→HTTPS redirect silently fails.
 - **DNS can't resolve the host** — verify with `dig sanctum.example.com` or `nslookup`.
+- **Same-VPC “hairpin” to the public IP** — from an instance in the same VPC, `curl https://your-api-public-ip-or-dns` may **time out** while 443 works from elsewhere. On the managed node, map the API hostname to the Sanctum host’s **private** IP in `/etc/hosts`, or use private DNS that resolves to the private IP.
 - **Self-signed / expired cert** — curl will refuse the connection. Fix the cert or (testing only) use `curl -k`.
 - **Script runs but heartbeat missing** — the heartbeat URL may be `http://` instead of `https://` if the reverse proxy isn't forwarding `X-Forwarded-Proto`. See network requirements below.
 
@@ -228,6 +241,45 @@ sudo systemctl restart sanctum-api sanctum-ui
 No other ports are required. Nodes only need outbound HTTPS to the Sanctum host. The Sanctum host does not initiate connections to nodes.
 
 **Reverse proxy must forward** `Host`, `X-Forwarded-Proto`, and `X-Forwarded-For` headers to Gunicorn so Django generates correct `https://` URLs in the provision script. Without `X-Forwarded-Proto: https` on the :443 vhost, heartbeat URLs will be `http://` and silently fail on nodes that redirect HTTP→HTTPS.
+
+### Managed node checklist
+
+1. From the node: DNS resolves the API hostname; outbound TCP **443** to that host succeeds.
+2. If the node is in the same VPC as Sanctum and the public IP **times out**, apply the hairpin fix (`/etc/hosts` or private DNS) before relying on cron.
+3. Fetch the script and spot-check the embedded heartbeat line: `curl -sSL "https://YOUR_API_HOST/api/provision/<TOKEN>/" | grep -A3 Heartbeat` — expect `https://` and `curl -sSL`.
+4. Install `/etc/cron.d/sanctum` using the **environment’s** token from the dashboard (wrong token = wrong access group).
+5. After a few minutes, confirm the server appears in the dashboard with a recent **last seen** time.
+
+### Automation snippets (optional)
+
+Prefer generating `/etc/cron.d/sanctum` from config (Ansible, Terraform, cloud-init) instead of hand-editing—fewer wrong-token and missing-file mistakes.
+
+**cloud-init** (`write_files` + optional first run):
+
+```yaml
+#cloud-config
+write_files:
+  - path: /etc/cron.d/sanctum
+    permissions: "0644"
+    content: |
+      */5 * * * * root curl -sSL https://YOUR_API_HOST/api/provision/YOUR_TOKEN_HERE/ | bash
+
+runcmd:
+  - curl -sSL https://YOUR_API_HOST/api/provision/YOUR_TOKEN_HERE/ | bash
+```
+
+**Ansible:**
+
+```yaml
+- name: Install Sanctum provision cron
+  ansible.builtin.copy:
+    dest: /etc/cron.d/sanctum
+    mode: "0644"
+    content: |
+      */5 * * * * root curl -sSL {{ sanctum_api_base }}/provision/{{ sanctum_provision_token }}/ | bash
+```
+
+Set `sanctum_api_base` to the full API root (e.g. `https://sanctum.example.com/api`, no trailing slash) and `sanctum_provision_token` to the server group’s token. Re-copy after `regenerate-token`.
 
 ## Security notes
 

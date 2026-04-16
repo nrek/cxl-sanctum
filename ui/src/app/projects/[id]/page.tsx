@@ -13,7 +13,7 @@ import {
   ProjectAccessResponse,
   ProjectAccessCell,
 } from "@/lib/api";
-import CopyButton from "@/components/CopyButton";
+import ProvisionSnippets from "@/components/ProvisionSnippets";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 
@@ -424,16 +424,28 @@ export default function ProjectDetailPage() {
           <p className="text-sm text-sanctum-muted">No environments yet.</p>
         ) : (
           <div className="space-y-4">
+            <p className="text-xs leading-relaxed text-sanctum-muted">
+              Use each environment&apos;s commands only on servers that belong to
+              that environment.{" "}
+              <strong className="font-medium text-sanctum-mist">
+                Online
+              </strong>{" "}
+              in the dashboard means a heartbeat within about 10 minutes. If
+              HTTPS to the API&apos;s public IP times out from inside the same
+              VPC (hairpin), map the API hostname to its private IP in{" "}
+              <code className="rounded bg-sanctum-line/15 px-1 text-sanctum-mist">
+                /etc/hosts
+              </code>
+              .
+            </p>
             {access.environments.map((env) => {
-              const url = `${apiBase}/provision/${env.provision_token}/`;
-              const cmd = `curl -sS ${url} | sudo bash`;
               const cnt = serverCountForGroup(env.id);
               return (
                 <div
                   key={env.id}
                   className="rounded-lg border border-sanctum-line/20 bg-sanctum-ink/50 p-4"
                 >
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-sanctum-mist">
                       {env.name}
                     </span>
@@ -441,12 +453,10 @@ export default function ProjectDetailPage() {
                       {cnt} server{cnt === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <code className="min-w-0 flex-1 break-all rounded bg-[#0f1c24] px-2 py-1.5 font-mono text-xs text-sanctum-mist">
-                      {cmd}
-                    </code>
-                    <CopyButton text={cmd} />
-                  </div>
+                  <ProvisionSnippets
+                    apiBase={apiBase}
+                    token={env.provision_token}
+                  />
                   <div className="flex items-center gap-1">
                     <Tooltip label="Regenerate provision token (invalidates old curl URL)">
                       <button
