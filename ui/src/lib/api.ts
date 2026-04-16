@@ -403,6 +403,17 @@ export interface DashboardStats {
   recent_activity: RecentServerActivity[];
 }
 
+export interface HealthStatus {
+  api: boolean;
+  database: boolean;
+  uptime_seconds: number;
+  heartbeat_freshness: {
+    total_servers: number;
+    online: number;
+    stale: number;
+  };
+}
+
 export interface ProjectAccessEnvironment {
   id: number;
   name: string;

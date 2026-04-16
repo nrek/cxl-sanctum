@@ -6,6 +6,7 @@ import {
   BillingStatus,
   DashboardStats,
   fetchBillingStatus,
+  HealthStatus,
   openBillingPortal,
   startProCheckout,
   WorkspaceSummary,
@@ -24,9 +25,30 @@ const STAT_CARDS = [
   },
 ];
 
+function formatUptime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h >= 48) {
+    const d = Math.floor(h / 24);
+    return `${d}d ${h % 24}h`;
+  }
+  if (h > 0) return `${h}h ${m}m`;
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function heartbeatDotClass(h: HealthStatus["heartbeat_freshness"]): string {
+  const { total_servers, online } = h;
+  if (total_servers === 0) return "bg-sanctum-muted";
+  if (online === total_servers) return "bg-success";
+  if (online > 0) return "bg-warning";
+  return "bg-red-500";
+}
+
 export default function DashboardPage() {
   const { workspace: ctxWorkspace, loading: wsLoading } = useWorkspace();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [billingAction, setBillingAction] = useState(false);
 
@@ -43,6 +65,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     apiFetch<DashboardStats>("/stats/").then(setStats);
+    apiFetch<HealthStatus>("/health/").then(setHealth);
   }, []);
 
   useEffect(() => {
@@ -132,6 +155,47 @@ export default function DashboardPage() {
           ) : null}
         </div>
       )}
+
+      {health ? (
+        <div className="sanctum-card mb-6 flex flex-wrap items-center gap-3 p-4 text-sm">
+          <span className="text-sanctum-muted">System</span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
+            <span className="inline-block h-2 w-2 rounded-full bg-success" />
+            <span className="text-sanctum-muted">API</span>
+            <span className="text-sanctum-mist">Online</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                health.database ? "bg-success" : "bg-red-500"
+              }`}
+            />
+            <span className="text-sanctum-muted">Database</span>
+            <span className="text-sanctum-mist">
+              {health.database ? "Connected" : "Down"}
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
+            <span className="text-sanctum-muted">Worker uptime</span>
+            <span className="tabular-nums text-sanctum-mist">
+              {formatUptime(health.uptime_seconds)}
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${heartbeatDotClass(
+                health.heartbeat_freshness
+              )}`}
+            />
+            <span className="text-sanctum-muted">Heartbeats</span>
+            <span className="tabular-nums text-sanctum-mist">
+              {health.heartbeat_freshness.total_servers === 0
+                ? "No servers yet"
+                : `${health.heartbeat_freshness.online}/${health.heartbeat_freshness.total_servers} online`}
+            </span>
+          </span>
+        </div>
+      ) : null}
 
       <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {STAT_CARDS.map((card) => (

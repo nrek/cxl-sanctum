@@ -349,6 +349,22 @@ class APITests(TestCase):
         for key in ("projects", "members", "servers_online", "recent_activity"):
             self.assertIn(key, res.data)
 
+    def test_health_check(self):
+        res = self.client.get("/api/health/")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["api"])
+        self.assertTrue(res.data["database"])
+        self.assertIsInstance(res.data["uptime_seconds"], int)
+        self.assertGreaterEqual(res.data["uptime_seconds"], 0)
+        hf = res.data["heartbeat_freshness"]
+        for key in ("total_servers", "online", "stale"):
+            self.assertIn(key, hf)
+
+    def test_health_requires_auth(self):
+        anon = APIClient()
+        res = anon.get("/api/health/")
+        self.assertEqual(res.status_code, 401)
+
     def test_projects_crud(self):
         res = self.client.post(
             "/api/projects/", {"name": "Acme", "description": "Client"}, format="json"

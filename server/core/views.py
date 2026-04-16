@@ -1,3 +1,4 @@
+import time
 import uuid
 from datetime import timedelta
 
@@ -48,6 +49,9 @@ from .serializers import (
 )
 from .provision import generate_provision_script
 from .member_access import revoke_member_globally, restore_member_access
+
+# Per Gunicorn worker process — used for dashboard uptime display.
+_PROCESS_START = time.time()
 
 
 class TeamViewSet(viewsets.ModelViewSet):
@@ -747,4 +751,52 @@ def workspace_summary(request):
             django_settings, "SANCTUM_DEPLOYMENT_MODE", "self_hosted"
         ),
         "role": role,
+    })
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def health_check(request):
+    """Lightweight service status for the dashboard (per authenticated workspace)."""
+    from django.db import connection
+
+    database_ok = True
+    try:
+        connection.ensure_connection()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception:
+        database_ok = False
+
+    uptime_seconds = int(time.time() - _PROCESS_START)
+    ws = get_request_workspace(request)
+    threshold = timezone.now() - timedelta(minutes=10)
+
+    if ws is None:
+        return Response({
+            "api": True,
+            "database": database_ok,
+            "uptime_seconds": uptime_seconds,
+            "heartbeat_freshness": {
+                "total_servers": 0,
+                "online": 0,
+                "stale": 0,
+            },
+        })
+
+    total_servers = Server.objects.filter(server_group__workspace=ws).count()
+    online = Server.objects.filter(
+        server_group__workspace=ws, last_seen__gte=threshold
+    ).count()
+    stale = total_servers - online
+
+    return Response({
+        "api": True,
+        "database": database_ok,
+        "uptime_seconds": uptime_seconds,
+        "heartbeat_freshness": {
+            "total_servers": total_servers,
+            "online": online,
+            "stale": stale,
+        },
     })

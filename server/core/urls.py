@@ -22,5 +22,6 @@ urlpatterns = [
     path("heartbeat/<uuid:token>/", views.heartbeat_view, name="heartbeat"),
     path("heartbeat/<uuid:token>", views.heartbeat_view),
     path("stats/", views.dashboard_stats, name="dashboard-stats"),
+    path("health/", views.health_check, name="health-check"),
     path("workspace/", views.workspace_summary, name="workspace-summary"),
 ]

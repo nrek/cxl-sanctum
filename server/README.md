@@ -174,6 +174,7 @@ All endpoints except provision and heartbeat require token authentication (`Auth
 | GET | `/api/provision/<token>/` | token | Get provisioning script |
 | POST | `/api/heartbeat/<token>/` | token | Server check-in |
 | GET | `/api/stats/` | admin | `projects`, `members`, `servers_online`, `recent_activity` |
+| GET | `/api/health/` | admin | DB ping, worker `uptime_seconds`, heartbeat counts for dashboard |
 
 ## Troubleshooting server connections
 
