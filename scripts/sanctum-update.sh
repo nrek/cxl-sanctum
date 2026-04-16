@@ -24,7 +24,7 @@ set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,22p' "$0" | sed 's/^# //' | sed 's/^#//'
+  sed -n '2,20p' "$0" | sed 's/^# //' | sed 's/^#//'
 }
 
 FORCE_BUILD=0
