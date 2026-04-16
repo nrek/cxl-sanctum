@@ -242,7 +242,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def access(self, request, pk=None):
         """Mini matrix: team rows and member (user) rows x environments."""
         project = self.get_object()
-        envs = list(project.server_groups.all().order_by("name"))
+        ENV_ORDER = {"development": 0, "staging": 1, "production": 2}
+        envs = sorted(
+            project.server_groups.all(),
+            key=lambda e: (ENV_ORDER.get(e.name.lower(), 99), e.name),
+        )
         env_ids = [e.id for e in envs]
         if not env_ids:
             return Response(

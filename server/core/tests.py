@@ -387,6 +387,17 @@ class APITests(TestCase):
         self.assertEqual(len(res.data["team_rows"]), 1)
         self.assertEqual(res.data["team_rows"][0]["cells"][0]["role"], "sudo")
 
+    def test_project_access_environment_order(self):
+        """Environments appear as Development -> Staging -> Production."""
+        proj = Project.objects.create(name="Ordered", workspace=self.ws)
+        ServerGroup.objects.create(project=proj, name="Production")
+        ServerGroup.objects.create(project=proj, name="Development")
+        ServerGroup.objects.create(project=proj, name="Staging")
+        res = self.client.get(f"/api/projects/{proj.id}/access/")
+        self.assertEqual(res.status_code, 200)
+        names = [e["name"] for e in res.data["environments"]]
+        self.assertEqual(names, ["Development", "Staging", "Production"])
+
     def test_project_assign_member(self):
         proj = Project.objects.create(name="P2", workspace=self.ws)
         sg = ServerGroup.objects.create(project=proj, name="Dev")
