@@ -18,7 +18,9 @@ router.register(
 urlpatterns = [
     path("", include(router.urls)),
     path("provision/<uuid:token>/", views.provision_view, name="provision"),
+    path("provision/<uuid:token>", views.provision_view),
     path("heartbeat/<uuid:token>/", views.heartbeat_view, name="heartbeat"),
+    path("heartbeat/<uuid:token>", views.heartbeat_view),
     path("stats/", views.dashboard_stats, name="dashboard-stats"),
     path("workspace/", views.workspace_summary, name="workspace-summary"),
 ]
