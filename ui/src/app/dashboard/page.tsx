@@ -13,6 +13,7 @@ import {
   WorkspaceSummary,
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { classifyIp } from "@/lib/ip";
 
 const ACTIVE_CONNECTIONS_PAGE_SIZE = 8;
 
@@ -287,9 +288,17 @@ export default function DashboardPage() {
                         {s.hostname || s.name}
                       </td>
                       <td className="py-2 pr-4 font-mono text-xs">
-                        {s.ip_address || (
-                          <span className="text-sanctum-muted">—</span>
-                        )}
+                        {(() => {
+                          const kind = classifyIp(s.ip_address);
+                          if (kind === "public") return s.ip_address;
+                          if (kind === "proxied")
+                            return (
+                              <span className="text-xs font-semibold uppercase tracking-wider text-sanctum-muted">
+                                proxied
+                              </span>
+                            );
+                          return <span className="text-sanctum-muted">—</span>;
+                        })()}
                       </td>
                       <td className="py-2 pr-4 text-xs text-sanctum-muted tabular-nums">
                         {s.last_seen

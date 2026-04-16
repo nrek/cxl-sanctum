@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { apiFetch, pruneServers, type Server, type ServerStatus } from "@/lib/api";
+import { classifyIp } from "@/lib/ip";
 import Modal from "./Modal";
 import Tooltip from "./Tooltip";
 
@@ -30,6 +31,16 @@ function humanizeSeconds(secs: number | null): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   return `${d}d ago`;
+}
+
+function renderIp(ip: string | null): JSX.Element {
+  const kind = classifyIp(ip);
+  if (kind === "public") return <>{ip}</>;
+  if (kind === "proxied")
+    return (
+      <span className="font-semibold uppercase tracking-wider">proxied</span>
+    );
+  return <>—</>;
 }
 
 function statusClass(s: ServerStatus): string {
@@ -187,7 +198,7 @@ export default function ServerInventory({
                 {s.hostname || s.name}
               </span>
               <span className="font-mono text-xs text-sanctum-muted">
-                {s.ip_address || "—"}
+                {renderIp(s.ip_address)}
               </span>
               <span
                 className="text-xs text-sanctum-muted"
@@ -298,7 +309,7 @@ export default function ServerInventory({
                   {s.hostname || s.name}
                 </code>
                 <span className="text-sanctum-muted">
-                  {s.ip_address || "—"} · {humanizeSeconds(s.seconds_since_seen)}
+                  {renderIp(s.ip_address)} · {humanizeSeconds(s.seconds_since_seen)}
                 </span>
               </li>
             ))}
