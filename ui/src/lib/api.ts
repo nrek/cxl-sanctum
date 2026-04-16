@@ -1,5 +1,22 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+/** API root ending in `/api`. If unset: local dev uses :8000; deployed HTTPS uses same origin + `/api` (Apache proxies `/api`). */
+function getApiBase(): string {
+  const env = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (env) {
+    return env.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    const isLoopback =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]";
+    if (isLoopback) {
+      return "http://localhost:8000/api";
+    }
+    return `${origin}/api`;
+  }
+  return "http://localhost:8000/api";
+}
 
 export class ApiError extends Error {
   status: number;
@@ -23,7 +40,7 @@ export async function apiFetch<T = unknown>(
     headers["Authorization"] = `Token ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${getApiBase()}${path}`, { ...options, headers });
 
   if (res.status === 401) {
     if (typeof window !== "undefined") {
@@ -46,7 +63,7 @@ export async function login(
   username: string,
   password: string
 ): Promise<string> {
-  const res = await fetch(`${API_BASE}/auth/login/`, {
+  const res = await fetch(`${getApiBase()}/auth/login/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -81,7 +98,7 @@ export async function registerAccount(
   password: string,
   email?: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/auth/register/`, {
+  const res = await fetch(`${getApiBase()}/auth/register/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -104,7 +121,7 @@ export async function registerAccount(
 }
 
 export async function requestPasswordReset(email: string): Promise<string> {
-  const res = await fetch(`${API_BASE}/auth/password-reset/`, {
+  const res = await fetch(`${getApiBase()}/auth/password-reset/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -126,7 +143,7 @@ export async function confirmPasswordReset(
   token: string,
   newPassword: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/auth/password-reset/confirm/`, {
+  const res = await fetch(`${getApiBase()}/auth/password-reset/confirm/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -148,7 +165,7 @@ async function logoutRemote(): Promise<void> {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("sanctum_token") : null;
   if (!token) return;
-  await fetch(`${API_BASE}/auth/logout/`, {
+  await fetch(`${getApiBase()}/auth/logout/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
