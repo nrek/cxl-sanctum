@@ -1,5 +1,5 @@
 /** API root ending in `/api`. If unset: local dev uses :8000; deployed HTTPS uses same origin + `/api` (Apache proxies `/api`). */
-function getApiBase(): string {
+export function getApiBase(): string {
   const env = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (env) {
     return env.replace(/\/$/, "");
@@ -241,6 +241,17 @@ export async function resetWorkspaceAdminPassword(
   });
 }
 
+/** PATCH email for a workspace admin (owner only). */
+export async function patchWorkspaceAdmin(
+  id: number,
+  payload: { email?: string }
+): Promise<WorkspaceAdminEntry> {
+  return apiFetch<WorkspaceAdminEntry>(`/workspace-admins/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 /** GET /billing/status/ — hosted SaaS only; returns null on OSS / missing route. */
 export interface BillingStatus {
   workspace_id: number;
@@ -309,6 +320,18 @@ export interface SSHKey {
   label: string;
   public_key: string;
   created_at: string;
+}
+
+/** PATCH label and/or public_key on a member's SSH key. */
+export async function patchMemberSSHKey(
+  memberId: number,
+  keyId: number,
+  payload: { label?: string; public_key?: string }
+): Promise<SSHKey> {
+  return apiFetch<SSHKey>(`/members/${memberId}/keys/${keyId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export interface Member {

@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { apiFetch, Member, Team } from "@/lib/api";
+import {
+  apiFetch,
+  Member,
+  patchMemberSSHKey,
+  SSHKey,
+  Team,
+} from "@/lib/api";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 
@@ -29,6 +35,12 @@ export default function MembersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [editKeyTarget, setEditKeyTarget] = useState<{
+    member: Member;
+    key: SSHKey;
+  } | null>(null);
+  const [editKeyForm, setEditKeyForm] = useState({ label: "", public_key: "" });
+  const [editKeySaving, setEditKeySaving] = useState(false);
 
   const load = useCallback(() => {
     apiFetch<Member[]>("/members/").then(setMembers);
@@ -174,6 +186,30 @@ export default function MembersPage() {
     load();
   };
 
+  const openEditKey = (member: Member, key: SSHKey) => {
+    setEditKeyTarget({ member, key });
+    setEditKeyForm({
+      label: key.label || "",
+      public_key: key.public_key,
+    });
+  };
+
+  const handleSaveEditKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editKeyTarget) return;
+    setEditKeySaving(true);
+    try {
+      await patchMemberSSHKey(editKeyTarget.member.id, editKeyTarget.key.id, {
+        label: editKeyForm.label.trim(),
+        public_key: editKeyForm.public_key.trim(),
+      });
+      setEditKeyTarget(null);
+      load();
+    } finally {
+      setEditKeySaving(false);
+    }
+  };
+
   const toggleTeam = (teamId: number) => {
     setForm((prev) => ({
       ...prev,
@@ -302,16 +338,28 @@ export default function MembersPage() {
                         {k.public_key.substring(0, 50)}...
                       </span>
                     </div>
-                    <Tooltip label="Remove SSH key">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteKey(m.id, k.id)}
-                        className="icon-btn-danger ml-2 flex-shrink-0"
-                        aria-label="Remove SSH key"
-                      >
-                        <i className="fa-solid fa-trash text-xs" aria-hidden />
-                      </button>
-                    </Tooltip>
+                    <div className="ml-2 flex shrink-0 items-center gap-0.5">
+                      <Tooltip label="Edit label or public key">
+                        <button
+                          type="button"
+                          onClick={() => openEditKey(m, k)}
+                          className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
+                          aria-label="Edit SSH key"
+                        >
+                          <i className="fa-solid fa-pen text-xs" aria-hidden />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Remove SSH key">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteKey(m.id, k.id)}
+                          className="icon-btn-danger flex-shrink-0"
+                          aria-label="Remove SSH key"
+                        >
+                          <i className="fa-solid fa-trash text-xs" aria-hidden />
+                        </button>
+                      </Tooltip>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -595,6 +643,66 @@ export default function MembersPage() {
             )}
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={editKeyTarget !== null}
+        onClose={() => setEditKeyTarget(null)}
+        title={
+          editKeyTarget
+            ? `Edit SSH key — ${editKeyTarget.member.username}`
+            : "Edit SSH key"
+        }
+      >
+        <form onSubmit={(e) => void handleSaveEditKey(e)} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Label
+            </label>
+            <input
+              type="text"
+              value={editKeyForm.label}
+              onChange={(e) =>
+                setEditKeyForm((f) => ({ ...f, label: e.target.value }))
+              }
+              placeholder="e.g. Laptop, CI deploy key"
+              className="sanctum-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Public key
+            </label>
+            <textarea
+              value={editKeyForm.public_key}
+              onChange={(e) =>
+                setEditKeyForm((f) => ({ ...f, public_key: e.target.value }))
+              }
+              rows={5}
+              required
+              className="sanctum-input font-mono text-xs"
+            />
+            <p className="mt-1 text-xs text-sanctum-muted">
+              One line, OpenSSH format (e.g. ssh-ed25519, ssh-rsa, ecdsa-sha2-…).
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setEditKeyTarget(null)}
+              className="btn-ghost"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={editKeySaving}
+              className="btn-primary"
+            >
+              {editKeySaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       <Modal

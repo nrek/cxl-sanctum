@@ -145,6 +145,31 @@ def generate_provision_script(server_group, request=None):
             lines.append(f"remove_user {shlex.quote(member.username)}")
             lines.append("")
 
+    # Build the set of usernames this script is aware of so the cleanup
+    # pass can recognise stale OS users left behind by earlier runs.
+    known_usernames = sorted(
+        {member.username for _mid, (member, _role, _keys) in member_roles.items()}
+    )
+    known_str = "|".join([""] + known_usernames + [""])  # e.g. "|alice|bob|"
+
+    lines.extend([
+        "# --- Cleanup: lock stale Sanctum-managed users no longer in desired state ---",
+        f'KNOWN_USERS="{known_str}"',
+        "",
+        "for home_dir in /home/*/; do",
+        '  [ -d "$home_dir" ] || continue',
+        '  username=$(basename "$home_dir")',
+        '  ak="$home_dir.ssh/authorized_keys"',
+        '  [ -f "$ak" ] || continue',
+        '  grep -q "$MARKER" "$ak" || continue',
+        '  case "$KNOWN_USERS" in',
+        '    *"|$username|"*) ;;',
+        '    *) remove_user "$username" ;;',
+        "  esac",
+        "done",
+        "",
+    ])
+
     if base_url:
         lines.extend([
             "# --- Heartbeat ---",

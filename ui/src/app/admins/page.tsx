@@ -7,6 +7,7 @@ import {
   createWorkspaceAdmin,
   deleteWorkspaceAdmin,
   fetchWorkspaceAdmins,
+  patchWorkspaceAdmin,
   resetWorkspaceAdminPassword,
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
@@ -29,6 +30,14 @@ export default function AdminsPage() {
   const [pwdForm, setPwdForm] = useState({ new_password: "", confirm: "" });
   const [pwdSaving, setPwdSaving] = useState(false);
   const [pwdError, setPwdError] = useState("");
+
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailTarget, setEmailTarget] = useState<WorkspaceAdminEntry | null>(
+    null
+  );
+  const [emailValue, setEmailValue] = useState("");
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   const load = useCallback(() => {
     setLoadError("");
@@ -79,6 +88,36 @@ export default function AdminsPage() {
     }
     await deleteWorkspaceAdmin(a.id);
     load();
+  };
+
+  const openEmail = (a: WorkspaceAdminEntry) => {
+    setEmailTarget(a);
+    setEmailValue(a.email || "");
+    setEmailError("");
+    setEmailModalOpen(true);
+  };
+
+  const submitEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailTarget) return;
+    setEmailSaving(true);
+    setEmailError("");
+    try {
+      await patchWorkspaceAdmin(emailTarget.id, {
+        email: emailValue.trim(),
+      });
+      setEmailModalOpen(false);
+      setEmailTarget(null);
+      load();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as Error).message)
+          : "Could not update email.";
+      setEmailError(msg);
+    } finally {
+      setEmailSaving(false);
+    }
   };
 
   const openPwd = (a: WorkspaceAdminEntry) => {
@@ -245,6 +284,13 @@ export default function AdminsPage() {
                   <td className="px-6 py-4 text-right">
                     <button
                       type="button"
+                      onClick={() => openEmail(a)}
+                      className="btn-secondary mr-2 text-sm"
+                    >
+                      Edit email
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => openPwd(a)}
                       className="btn-secondary mr-2 text-sm"
                     >
@@ -264,6 +310,59 @@ export default function AdminsPage() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={emailModalOpen}
+        onClose={() => {
+          setEmailModalOpen(false);
+          setEmailTarget(null);
+        }}
+        title={
+          emailTarget
+            ? `Email — ${emailTarget.username}`
+            : "Edit email"
+        }
+      >
+        <form onSubmit={(e) => void submitEmail(e)} className="space-y-4">
+          {emailError ? (
+            <div className="rounded-md border border-danger/40 bg-danger-surface px-4 py-2 text-sm text-danger">
+              {emailError}
+            </div>
+          ) : null}
+          <div>
+            <label className="mb-1 block text-xs text-sanctum-muted" htmlFor="adm-email-edit">
+              Email
+            </label>
+            <input
+              id="adm-email-edit"
+              type="email"
+              value={emailValue}
+              onChange={(e) => setEmailValue(e.target.value)}
+              className="sanctum-input w-full"
+              placeholder="Used for password reset and notifications"
+              autoComplete="off"
+            />
+            <p className="mt-1 text-xs text-sanctum-muted">
+              Leave empty if this admin should not receive email.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setEmailModalOpen(false);
+                setEmailTarget(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={emailSaving} className="btn-primary">
+              {emailSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={pwdModalOpen}

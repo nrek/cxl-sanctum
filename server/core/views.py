@@ -37,12 +37,14 @@ from .serializers import (
     MemberMinimalSerializer,
     MemberSerializer,
     SSHKeySerializer,
+    SSHKeyUpdateSerializer,
     ProjectSerializer,
     ServerGroupSerializer,
     ServerSerializer,
     AssignmentSerializer,
     WorkspaceAdminSerializer,
     WorkspaceAdminCreateSerializer,
+    WorkspaceAdminPatchSerializer,
 )
 from .provision import generate_provision_script
 from .member_access import revoke_member_globally, restore_member_access
@@ -148,6 +150,20 @@ class MemberViewSet(viewsets.ModelViewSet):
         key = get_object_or_404(SSHKey, pk=key_id, member=member)
         key.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["patch"], url_path=r"keys/(?P<key_id>[^/.]+)")
+    def update_key(self, request, pk=None, key_id=None):
+        member = self.get_object()
+        key = get_object_or_404(SSHKey, pk=key_id, member=member)
+        serializer = SSHKeyUpdateSerializer(
+            key, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            SSHKeySerializer(key, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"], url_path="generate-key")
     def generate_key(self, request, pk=None):
@@ -535,6 +551,8 @@ class AssignmentViewSet(viewsets.ModelViewSet):
 
 class WorkspaceAdminViewSet(
     mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
@@ -555,7 +573,23 @@ class WorkspaceAdminViewSet(
     def get_serializer_class(self):
         if self.action == "create":
             return WorkspaceAdminCreateSerializer
+        if self.action in ("partial_update", "update"):
+            return WorkspaceAdminPatchSerializer
         return WorkspaceAdminSerializer
+
+    def partial_update(self, request, *args, **kwargs):
+        admin = self.get_object()
+        serializer = WorkspaceAdminPatchSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        if "email" in serializer.validated_data:
+            admin.user.email = serializer.validated_data.get("email") or ""
+            admin.user.save(update_fields=["email"])
+        return Response(
+            WorkspaceAdminSerializer(admin, context={"request": request}).data
+        )
+
+    def update(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         serializer = WorkspaceAdminCreateSerializer(data=request.data)

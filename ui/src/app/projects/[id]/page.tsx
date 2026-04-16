@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   apiFetch,
+  getApiBase,
   Project,
   Team,
   Member,
@@ -44,11 +45,11 @@ export default function ProjectDetailPage() {
   } | null>(null);
   const [deleteEnvConfirm, setDeleteEnvConfirm] = useState("");
   const [deletingEnv, setDeletingEnv] = useState(false);
+  const [editProjectOpen, setEditProjectOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", description: "" });
 
   const apiBase =
-    typeof window !== "undefined"
-      ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
-      : "";
+    typeof window !== "undefined" ? getApiBase() : "";
 
   const loadProject = useCallback(() => {
     apiFetch<Project>(`/projects/${id}/`).then(setProject);
@@ -280,6 +281,28 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const openEditProject = () => {
+    if (!project) return;
+    setEditForm({
+      name: project.name,
+      description: project.description ?? "",
+    });
+    setEditProjectOpen(true);
+  };
+
+  const handleSaveProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await apiFetch(`/projects/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: editForm.name.trim(),
+        description: editForm.description,
+      }),
+    });
+    setEditProjectOpen(false);
+    loadProject();
+  };
+
   if (!project || !access) {
     return (
       <div className="p-8 text-sanctum-muted">Loading...</div>
@@ -301,8 +324,26 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
-      <h1 className="mb-2 text-2xl font-bold text-sanctum-mist">{project.name}</h1>
-      <p className="mb-2 text-sanctum-muted">{project.description || ""}</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="mb-2 text-2xl font-bold text-sanctum-mist">
+            {project.name}
+          </h1>
+          <p className="text-sanctum-muted">
+            {project.description || (
+              <span className="italic text-sanctum-muted/80">No description</span>
+            )}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openEditProject}
+          className="btn-secondary shrink-0 text-sm"
+        >
+          <i className="fa-solid fa-pen mr-1.5" aria-hidden />
+          Edit project
+        </button>
+      </div>
       <p className="mb-6 text-sm text-sanctum-muted">
         Assign <strong className="text-sanctum-mist">teams</strong> (groups of
         users) or <strong className="text-sanctum-mist">users</strong>{" "}
@@ -676,6 +717,55 @@ export default function ProjectDetailPage() {
           )}
         </div>
       )}
+
+      <Modal
+        open={editProjectOpen}
+        onClose={() => setEditProjectOpen(false)}
+        title="Edit project"
+      >
+        <form onSubmit={(e) => void handleSaveProject(e)} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Name
+            </label>
+            <input
+              type="text"
+              value={editForm.name}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, name: e.target.value }))
+              }
+              required
+              className="sanctum-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Description
+            </label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, description: e.target.value }))
+              }
+              rows={4}
+              className="sanctum-input min-h-[6rem]"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setEditProjectOpen(false)}
+              className="btn-ghost"
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary">
+              <i className="fa-solid fa-check mr-1.5" aria-hidden />
+              Save
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={addEnvOpen} onClose={() => setAddEnvOpen(false)} title="Add environment">
         <form onSubmit={handleAddEnvironment} className="space-y-4">

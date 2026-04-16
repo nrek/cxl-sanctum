@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { apiFetch, Project, ServerGroup } from "@/lib/api";
+import { apiFetch, getApiBase, Project, ServerGroup } from "@/lib/api";
 import Modal from "@/components/Modal";
 import CopyButton from "@/components/CopyButton";
 import Tooltip from "@/components/Tooltip";
@@ -11,6 +11,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [ungrouped, setUngrouped] = useState<ServerGroup[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState({ name: "", description: "" });
   const [deleteUngrouped, setDeleteUngrouped] = useState<ServerGroup | null>(
     null
@@ -28,17 +29,38 @@ export default function ProjectsPage() {
   }, [load]);
 
   const apiBase =
-    typeof window !== "undefined"
-      ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
-      : "";
+    typeof window !== "undefined" ? getApiBase() : "";
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ name: "", description: "" });
+    setModalOpen(true);
+  };
+
+  const openEdit = (p: Project) => {
+    setEditing(p);
+    setForm({ name: p.name, description: p.description ?? "" });
+    setModalOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await apiFetch("/projects/", {
-      method: "POST",
-      body: JSON.stringify(form),
-    });
+    if (editing) {
+      await apiFetch(`/projects/${editing.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          description: form.description,
+        }),
+      });
+    } else {
+      await apiFetch("/projects/", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+    }
     setModalOpen(false);
+    setEditing(null);
     setForm({ name: "", description: "" });
     load();
   };
@@ -72,7 +94,7 @@ export default function ProjectsPage() {
         <h1 className="text-2xl font-bold text-sanctum-mist">Projects</h1>
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
+          onClick={openCreate}
           className="btn-primary"
         >
           <i className="fa-solid fa-circle-plus" aria-hidden />
@@ -90,16 +112,28 @@ export default function ProjectsPage() {
               >
                 {p.name}
               </Link>
-              <Tooltip label="Delete project">
-                <button
-                  type="button"
-                  onClick={() => handleDelete(p.id)}
-                  className="icon-btn-danger -mr-1 -mt-1"
-                  aria-label="Delete project"
-                >
-                  <i className="fa-solid fa-trash" aria-hidden />
-                </button>
-              </Tooltip>
+              <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
+                <Tooltip label="Edit name and description">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(p)}
+                    className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
+                    aria-label="Edit project"
+                  >
+                    <i className="fa-solid fa-pen" aria-hidden />
+                  </button>
+                </Tooltip>
+                <Tooltip label="Delete project">
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(p.id)}
+                    className="icon-btn-danger"
+                    aria-label="Delete project"
+                  >
+                    <i className="fa-solid fa-trash" aria-hidden />
+                  </button>
+                </Tooltip>
+              </div>
             </div>
             <p className="mb-3 line-clamp-2 text-sm text-sanctum-muted">
               {p.description || "No description"}
@@ -165,8 +199,11 @@ export default function ProjectsPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="New Project"
+        onClose={() => {
+          setModalOpen(false);
+          setEditing(null);
+        }}
+        title={editing ? "Edit project" : "New Project"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -198,14 +235,26 @@ export default function ProjectsPage() {
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => setModalOpen(false)}
+              onClick={() => {
+                setModalOpen(false);
+                setEditing(null);
+              }}
               className="btn-ghost"
             >
               Cancel
             </button>
             <button type="submit" className="btn-primary">
-              <i className="fa-solid fa-circle-plus" aria-hidden />
-              Create
+              {editing ? (
+                <>
+                  <i className="fa-solid fa-check" aria-hidden />
+                  Save
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-circle-plus" aria-hidden />
+                  Create
+                </>
+              )}
             </button>
           </div>
         </form>

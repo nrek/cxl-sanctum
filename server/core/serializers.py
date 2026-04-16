@@ -62,6 +62,35 @@ class SSHKeySerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at"]
 
 
+class SSHKeyUpdateSerializer(serializers.ModelSerializer):
+    """PATCH label and/or public_key on an existing key."""
+
+    class Meta:
+        model = SSHKey
+        fields = ["label", "public_key"]
+
+    def validate_public_key(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Public key cannot be empty.")
+        if len(value) < 20:
+            raise serializers.ValidationError("Public key looks too short.")
+        if not (
+            value.startswith("ssh-")
+            or value.startswith("ecdsa-sha2-")
+            or value.startswith("sk-")
+        ):
+            raise serializers.ValidationError(
+                "Public key must look like an OpenSSH line (e.g. ssh-ed25519 …)."
+            )
+        return value
+
+    def validate_label(self, value):
+        if value is None:
+            return ""
+        return (value or "").strip()[:100]
+
+
 class TeamSerializer(serializers.ModelSerializer):
     member_count = serializers.IntegerField(read_only=True, required=False)
 
@@ -267,3 +296,9 @@ class WorkspaceAdminCreateSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True, min_length=1)
     email = serializers.EmailField(required=False, allow_blank=True, default="")
+
+
+class WorkspaceAdminPatchSerializer(serializers.Serializer):
+    """Update workspace admin contact email (stored on Django User)."""
+
+    email = serializers.EmailField(required=False, allow_blank=True)

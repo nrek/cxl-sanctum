@@ -118,9 +118,47 @@ class ProvisionScriptTests(TestCase):
         script = generate_provision_script(self.sg)
         self.assertIn("#!/usr/bin/env bash", script)
         desired_idx = script.index("# --- Desired State ---")
-        after_desired = script[desired_idx:]
-        self.assertNotIn("ensure_user alice", after_desired)
-        self.assertNotIn("remove_user ", after_desired)
+        cleanup_idx = script.index("# --- Cleanup:")
+        desired_section = script[desired_idx:cleanup_idx]
+        self.assertNotIn("ensure_user", desired_section)
+        self.assertNotIn("remove_user", desired_section)
+
+    def test_cleanup_section_lists_known_users(self):
+        """Cleanup pass should list all desired-state usernames so stale OS users
+        left behind by earlier runs get locked on the next cron."""
+        Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
+        Assignment.objects.create(team=self.team_ops, server_group=self.sg, role="sudo")
+
+        script = generate_provision_script(self.sg)
+        self.assertIn("KNOWN_USERS=", script)
+        self.assertIn("|alice|", script)
+        self.assertIn("|bob|", script)
+        self.assertIn("remove_user", script)
+
+    def test_cleanup_excludes_removed_member_no_longer_assigned(self):
+        """When a member is simply removed from a team (not globally revoked),
+        they should NOT appear in KNOWN_USERS — the cleanup pass will lock them."""
+        Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
+        # alice is in team_dev -> she's in the script
+        script = generate_provision_script(self.sg)
+        self.assertIn("|alice|", script)
+
+        # bob is NOT assigned to any team on this environment
+        self.assertNotIn("|bob|", script)
+
+    def test_cleanup_empty_when_no_assignments(self):
+        """With zero assignments the known-users string is empty (|)."""
+        script = generate_provision_script(self.sg)
+        self.assertIn('KNOWN_USERS="|"', script)
+
+    def test_cleanup_includes_removed_role_in_known(self):
+        """Users with role=removed are still in KNOWN_USERS (the explicit
+        remove_user call handles them; cleanup should not double-process)."""
+        charlie = Member.objects.create(username="charlie", workspace=self.ws)
+        Assignment.objects.create(member=charlie, server_group=self.sg, role="removed")
+
+        script = generate_provision_script(self.sg)
+        self.assertIn("|charlie|", script)
 
     def test_script_is_idempotent_structure(self):
         Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
