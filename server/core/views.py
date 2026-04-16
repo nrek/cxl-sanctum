@@ -7,7 +7,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.conf import settings as django_settings
@@ -42,6 +42,8 @@ from .serializers import (
     ProjectSerializer,
     ServerGroupSerializer,
     ServerSerializer,
+    SERVER_ONLINE_WITHIN_SEC,
+    SERVER_STALE_WITHIN_SEC,
     AssignmentSerializer,
     WorkspaceAdminSerializer,
     WorkspaceAdminCreateSerializer,
@@ -512,6 +514,16 @@ class ServerViewSet(viewsets.ModelViewSet):
     serializer_class = ServerSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    # Minimum age (hours) for bulk prune; guards against accidentally sweeping
+    # recently-stale servers that may just be mid-reboot or mid-network-blip.
+    PRUNE_MIN_HOURS = 24
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        # Single "now" per request so all rows bucket against the same clock.
+        ctx["_now"] = timezone.now()
+        return ctx
+
     def get_queryset(self):
         ws = get_request_workspace(self.request)
         if ws is None:
@@ -524,7 +536,72 @@ class ServerViewSet(viewsets.ModelViewSet):
         group_id = self.request.query_params.get("server_group")
         if group_id:
             qs = qs.filter(server_group_id=group_id)
+
+        status_q = self.request.query_params.get("status")
+        if status_q in ("online", "stale", "dead"):
+            now = timezone.now()
+            online_at = now - timedelta(seconds=SERVER_ONLINE_WITHIN_SEC)
+            stale_at = now - timedelta(seconds=SERVER_STALE_WITHIN_SEC)
+            if status_q == "online":
+                qs = qs.filter(last_seen__gte=online_at)
+            elif status_q == "stale":
+                qs = qs.filter(last_seen__lt=online_at, last_seen__gte=stale_at)
+            else:
+                qs = qs.filter(Q(last_seen__lt=stale_at) | Q(last_seen__isnull=True))
         return qs
+
+    @action(detail=False, methods=["post"], url_path="prune")
+    def prune(self, request):
+        """Bulk-delete dead servers, workspace-scoped, optionally by server_group.
+
+        Body: { server_group?: int, older_than_hours?: int (>= 24) }
+        Returns: { deleted: int, ids: [int, ...] }
+        """
+        ws = get_request_workspace(request)
+        if ws is None:
+            return Response(
+                {"detail": "No workspace for this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        raw_hours = request.data.get("older_than_hours", self.PRUNE_MIN_HOURS)
+        try:
+            older_than_hours = int(raw_hours)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "older_than_hours must be an integer."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if older_than_hours < self.PRUNE_MIN_HOURS:
+            return Response(
+                {
+                    "detail": (
+                        f"older_than_hours must be >= {self.PRUNE_MIN_HOURS} to prune; "
+                        "delete recently stale servers individually instead."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = Server.objects.filter(server_group__workspace=ws)
+
+        group_id = request.data.get("server_group")
+        if group_id not in (None, ""):
+            try:
+                group_id_int = int(group_id)
+            except (TypeError, ValueError):
+                return Response(
+                    {"detail": "server_group must be an integer id."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            qs = qs.filter(server_group_id=group_id_int)
+
+        cutoff = timezone.now() - timedelta(hours=older_than_hours)
+        qs = qs.filter(Q(last_seen__lt=cutoff) | Q(last_seen__isnull=True))
+
+        ids = list(qs.values_list("id", flat=True))
+        deleted_count, _ = qs.delete()
+        return Response({"deleted": deleted_count, "ids": ids})
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):

@@ -308,6 +308,91 @@ runcmd:
 
 Set `sanctum_api_base` to the full API root (e.g. `https://sanctum.example.com/api`, no trailing slash) and `sanctum_provision_token` to the server group’s token. Re-copy after `regenerate-token`.
 
+### Inspecting heartbeats out of band
+
+The dashboard shows a per-environment list of server heartbeats bucketed as
+**online** / **stale** / **dead** (see [Heartbeat freshness](#heartbeat-freshness)
+below). When you need a quick answer without the UI — e.g. from an SSH
+session — drop into the Django shell or hit the SQLite database directly.
+
+Every server that has ever sent a heartbeat is stored in `core_server`. The
+`last_seen` column is UTC.
+
+**Django shell (recommended — respects Django timezone handling):**
+
+```bash
+cd server
+source .venv/bin/activate
+python manage.py shell -c "
+from django.utils import timezone
+from core.models import Server
+from core.serializers import server_status_for
+
+for s in Server.objects.select_related('server_group').order_by('-last_seen'):
+    age = server_status_for(s.last_seen)
+    print(f'{age:7} {s.ip_address or \"-\":15} {s.server_group.name:20} {s.hostname or s.name} last_seen={s.last_seen}')
+"
+```
+
+**Raw SQL (SQLite default):**
+
+```bash
+sqlite3 server/db.sqlite3 <<'SQL'
+.headers on
+.mode column
+SELECT
+  s.id,
+  s.hostname,
+  s.ip_address,
+  sg.name        AS environment,
+  s.last_seen,
+  CAST((julianday('now') - julianday(s.last_seen)) * 24 AS INT) AS hours_ago
+FROM core_server s
+JOIN core_servergroup sg ON sg.id = s.server_group_id
+ORDER BY s.last_seen DESC NULLS LAST;
+SQL
+```
+
+**List every IP that has ever heartbeated (deduped):**
+
+```sql
+SELECT DISTINCT ip_address
+FROM core_server
+WHERE ip_address IS NOT NULL
+ORDER BY ip_address;
+```
+
+**Postgres equivalent** (if you migrate off SQLite):
+
+```sql
+SELECT
+  s.id,
+  s.hostname,
+  host(s.ip_address) AS ip,
+  sg.name AS environment,
+  s.last_seen,
+  EXTRACT(EPOCH FROM (now() - s.last_seen)) / 3600 AS hours_ago
+FROM core_server s
+JOIN core_servergroup sg ON sg.id = s.server_group_id
+ORDER BY s.last_seen DESC NULLS LAST;
+```
+
+Prefer the UI for destructive changes — the per-environment Servers panel
+deletes with hostname-typed confirmation and bulk-prunes only rows older
+than 24 hours. Use SQL for read-only investigation.
+
+### Heartbeat freshness
+
+| Bucket  | Definition                                    | UI action                             |
+| ------- | --------------------------------------------- | ------------------------------------- |
+| online  | `last_seen` within the last 10 minutes        | Healthy                               |
+| stale   | `last_seen` 10 minutes .. 24 hours ago        | Investigate; delete individually      |
+| dead    | `last_seen` > 24 hours ago, or never recorded | Eligible for bulk **Prune dead**      |
+
+Bulk prune (`POST /api/servers/prune/`) is always scoped to the calling
+workspace and rejects any `older_than_hours` below 24. Delete stale rows one
+at a time so you don't accidentally sweep a box that's just rebooting.
+
 ## Security notes
 
 - Provision tokens authenticate servers. Treat them like API keys.

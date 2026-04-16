@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -199,16 +202,82 @@ class ServerGroupSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "provision_token", "created_at", "updated_at"]
 
 
+SERVER_ONLINE_WITHIN_SEC = 10 * 60
+SERVER_STALE_WITHIN_SEC = 24 * 60 * 60
+
+
+def server_status_for(last_seen, *, now=None):
+    """Bucket a server by freshness: online / stale / dead.
+
+    - online: seen within the last 10 minutes (cron runs every 5, so 2 misses = stale)
+    - stale:  seen within the last 24 hours, but not in the last 10 minutes
+    - dead:   never seen, or last seen over 24 hours ago
+    """
+    if last_seen is None:
+        return "dead"
+    now = now or timezone.now()
+    age = (now - last_seen).total_seconds()
+    if age <= SERVER_ONLINE_WITHIN_SEC:
+        return "online"
+    if age <= SERVER_STALE_WITHIN_SEC:
+        return "stale"
+    return "dead"
+
+
 class ServerSerializer(serializers.ModelSerializer):
     server_group_name = serializers.CharField(source="server_group.name", read_only=True)
+    status = serializers.SerializerMethodField()
+    seconds_since_seen = serializers.SerializerMethodField()
+    likely_replaced_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Server
         fields = [
             "id", "name", "hostname", "server_group", "server_group_name",
             "ip_address", "last_seen", "created_at",
+            "status", "seconds_since_seen", "likely_replaced_by",
         ]
-        read_only_fields = ["id", "last_seen", "created_at"]
+        read_only_fields = [
+            "id", "last_seen", "created_at",
+            "status", "seconds_since_seen", "likely_replaced_by",
+        ]
+
+    def _now(self):
+        cached = self.context.get("_now") if hasattr(self, "context") else None
+        return cached or timezone.now()
+
+    def get_seconds_since_seen(self, obj):
+        if obj.last_seen is None:
+            return None
+        return int((self._now() - obj.last_seen).total_seconds())
+
+    def get_status(self, obj):
+        return server_status_for(obj.last_seen, now=self._now())
+
+    def get_likely_replaced_by(self, obj):
+        # Only hint when the row itself isn't fresh — an online row is not a ghost.
+        if self.get_status(obj) == "online":
+            return None
+        if not obj.ip_address:
+            return None
+        threshold = self._now() - timedelta(seconds=SERVER_ONLINE_WITHIN_SEC)
+        candidate = (
+            Server.objects
+            .filter(
+                server_group_id=obj.server_group_id,
+                ip_address=obj.ip_address,
+                last_seen__gte=threshold,
+            )
+            .exclude(pk=obj.pk)
+            .order_by("-last_seen")
+            .first()
+        )
+        if candidate is None:
+            return None
+        return {
+            "id": candidate.id,
+            "hostname": candidate.hostname or candidate.name,
+        }
 
 
 class AssignmentSerializer(serializers.ModelSerializer):

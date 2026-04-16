@@ -14,6 +14,7 @@ import {
   ProjectAccessCell,
 } from "@/lib/api";
 import ProvisionSnippets from "@/components/ProvisionSnippets";
+import ServerInventory from "@/components/ServerInventory";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 
@@ -86,6 +87,9 @@ export default function ProjectDetailPage() {
 
   const serverCountForGroup = (gid: number) =>
     serversInProject.filter((s) => s.server_group === gid).length;
+
+  const serversForGroup = (gid: number) =>
+    serversInProject.filter((s) => s.server_group === gid);
 
   const activeMembers = useMemo(
     () => members.filter((m) => !m.access_revoked),
@@ -457,7 +461,13 @@ export default function ProjectDetailPage() {
                     apiBase={apiBase}
                     token={env.provision_token}
                   />
-                  <div className="flex items-center gap-1">
+                  <ServerInventory
+                    servers={serversForGroup(env.id)}
+                    environmentId={env.id}
+                    environmentName={env.name}
+                    onChange={loadServers}
+                  />
+                  <div className="mt-3 flex items-center gap-1">
                     <Tooltip label="Regenerate provision token (invalidates old curl URL)">
                       <button
                         type="button"

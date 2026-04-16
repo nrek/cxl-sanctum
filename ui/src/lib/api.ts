@@ -367,6 +367,13 @@ export interface ServerGroup {
   created_at: string;
 }
 
+export type ServerStatus = "online" | "stale" | "dead";
+
+export interface ServerReplacementHint {
+  id: number;
+  hostname: string;
+}
+
 export interface Server {
   id: number;
   name: string;
@@ -376,6 +383,28 @@ export interface Server {
   ip_address: string | null;
   last_seen: string | null;
   created_at: string;
+  status: ServerStatus;
+  seconds_since_seen: number | null;
+  likely_replaced_by: ServerReplacementHint | null;
+}
+
+export interface PruneServersRequest {
+  server_group?: number;
+  older_than_hours?: number;
+}
+
+export interface PruneServersResponse {
+  deleted: number;
+  ids: number[];
+}
+
+export function pruneServers(
+  body: PruneServersRequest = {}
+): Promise<PruneServersResponse> {
+  return apiFetch<PruneServersResponse>("/servers/prune/", {
+    method: "POST",
+    body: JSON.stringify({ older_than_hours: 24, ...body }),
+  });
 }
 
 export interface Assignment {

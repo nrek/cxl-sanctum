@@ -343,6 +343,212 @@ class APITests(TestCase):
         )
         self.assertEqual(Server.objects.filter(server_group=sg).count(), 1)
 
+    def test_server_status_buckets(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        now = timezone.now()
+        Server.objects.create(
+            name="a", hostname="a", server_group=sg, last_seen=now,
+        )
+        Server.objects.create(
+            name="b", hostname="b", server_group=sg,
+            last_seen=now - timedelta(hours=1),
+        )
+        Server.objects.create(
+            name="c", hostname="c", server_group=sg,
+            last_seen=now - timedelta(days=2),
+        )
+        Server.objects.create(
+            name="d", hostname="d", server_group=sg, last_seen=None,
+        )
+        res = self.client.get("/api/servers/")
+        self.assertEqual(res.status_code, 200)
+        by_host = {s["hostname"]: s for s in res.data}
+        self.assertEqual(by_host["a"]["status"], "online")
+        self.assertEqual(by_host["b"]["status"], "stale")
+        self.assertEqual(by_host["c"]["status"], "dead")
+        self.assertEqual(by_host["d"]["status"], "dead")
+        self.assertIsNone(by_host["d"]["seconds_since_seen"])
+        self.assertGreater(by_host["b"]["seconds_since_seen"], 600)
+
+    def test_server_status_filter(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        now = timezone.now()
+        Server.objects.create(
+            name="fresh", hostname="fresh", server_group=sg, last_seen=now,
+        )
+        Server.objects.create(
+            name="mid", hostname="mid", server_group=sg,
+            last_seen=now - timedelta(hours=1),
+        )
+        Server.objects.create(
+            name="old", hostname="old", server_group=sg,
+            last_seen=now - timedelta(days=2),
+        )
+        Server.objects.create(
+            name="never", hostname="never", server_group=sg, last_seen=None,
+        )
+
+        for status_q, expected in [
+            ("online", {"fresh"}),
+            ("stale", {"mid"}),
+            ("dead", {"old", "never"}),
+        ]:
+            res = self.client.get(f"/api/servers/?status={status_q}")
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(
+                {s["hostname"] for s in res.data}, expected,
+                msg=f"status={status_q}",
+            )
+
+    def test_server_replacement_hint(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        now = timezone.now()
+        Server.objects.create(
+            name="old", hostname="web-01", server_group=sg,
+            ip_address="10.0.0.5",
+            last_seen=now - timedelta(days=2),
+        )
+        fresh = Server.objects.create(
+            name="new", hostname="web-01.new", server_group=sg,
+            ip_address="10.0.0.5",
+            last_seen=now,
+        )
+
+        res = self.client.get("/api/servers/")
+        self.assertEqual(res.status_code, 200)
+        by_host = {s["hostname"]: s for s in res.data}
+
+        # Fresh row is its own answer — no hint.
+        self.assertIsNone(by_host["web-01.new"]["likely_replaced_by"])
+        # Dead row points to the fresh sibling sharing its IP.
+        hint = by_host["web-01"]["likely_replaced_by"]
+        self.assertIsNotNone(hint)
+        self.assertEqual(hint["id"], fresh.id)
+        self.assertEqual(hint["hostname"], "web-01.new")
+
+    def test_server_replacement_hint_ignores_other_group(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        sg1 = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        sg2 = ServerGroup.objects.create(name="staging", workspace=self.ws)
+        now = timezone.now()
+        Server.objects.create(
+            name="old", hostname="web-01", server_group=sg1,
+            ip_address="10.0.0.5",
+            last_seen=now - timedelta(days=2),
+        )
+        # Same IP, online, but a *different* environment — do not cross-wire.
+        Server.objects.create(
+            name="other", hostname="web-02", server_group=sg2,
+            ip_address="10.0.0.5",
+            last_seen=now,
+        )
+        res = self.client.get("/api/servers/")
+        by_host = {s["hostname"]: s for s in res.data}
+        self.assertIsNone(by_host["web-01"]["likely_replaced_by"])
+
+    def test_server_prune_requires_24h(self):
+        res = self.client.post(
+            "/api/servers/prune/",
+            {"older_than_hours": 1},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_server_prune_deletes_dead_only(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        now = timezone.now()
+        Server.objects.create(
+            name="fresh", hostname="fresh", server_group=sg, last_seen=now,
+        )
+        Server.objects.create(
+            name="stale", hostname="stale", server_group=sg,
+            last_seen=now - timedelta(hours=2),
+        )
+        Server.objects.create(
+            name="dead", hostname="dead", server_group=sg,
+            last_seen=now - timedelta(days=3),
+        )
+        Server.objects.create(
+            name="never", hostname="never", server_group=sg, last_seen=None,
+        )
+        res = self.client.post(
+            "/api/servers/prune/",
+            {"older_than_hours": 24},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["deleted"], 2)
+        self.assertEqual(
+            set(Server.objects.values_list("hostname", flat=True)),
+            {"fresh", "stale"},
+        )
+
+    def test_server_prune_scoped_by_group(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        sg1 = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        sg2 = ServerGroup.objects.create(name="staging", workspace=self.ws)
+        old = timezone.now() - timedelta(days=3)
+        Server.objects.create(
+            name="d1", hostname="d1", server_group=sg1, last_seen=old,
+        )
+        Server.objects.create(
+            name="d2", hostname="d2", server_group=sg2, last_seen=old,
+        )
+        res = self.client.post(
+            "/api/servers/prune/",
+            {"older_than_hours": 24, "server_group": sg1.id},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["deleted"], 1)
+        self.assertEqual(Server.objects.filter(server_group=sg2).count(), 1)
+
+    def test_server_prune_cross_workspace_isolated(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        other_user = User.objects.create_user(username="other", password="x")
+        other_ws = other_user.sanctum_workspace
+        other_sg = ServerGroup.objects.create(name="prod", workspace=other_ws)
+        Server.objects.create(
+            name="foreign", hostname="foreign", server_group=other_sg,
+            last_seen=timezone.now() - timedelta(days=3),
+        )
+        # Admin user prunes everything they can — but can't touch other_ws.
+        res = self.client.post(
+            "/api/servers/prune/",
+            {"older_than_hours": 24},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["deleted"], 0)
+        self.assertEqual(Server.objects.filter(server_group=other_sg).count(), 1)
+
+    def test_server_prune_requires_auth(self):
+        anon = APIClient()
+        res = anon.post(
+            "/api/servers/prune/",
+            {"older_than_hours": 24},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 401)
+
     def test_dashboard_stats(self):
         res = self.client.get("/api/stats/")
         self.assertEqual(res.status_code, 200)
