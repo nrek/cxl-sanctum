@@ -373,6 +373,24 @@ class APITests(TestCase):
         self.assertIsNone(by_host["d"]["seconds_since_seen"])
         self.assertGreater(by_host["b"]["seconds_since_seen"], 600)
 
+    def test_server_includes_project_name(self):
+        # Ungrouped environment -> project_name None
+        sg_ungrouped = ServerGroup.objects.create(name="bare", workspace=self.ws)
+        Server.objects.create(
+            name="u", hostname="u", server_group=sg_ungrouped,
+        )
+        # Grouped under a project -> project_name surfaced
+        p = Project.objects.create(workspace=self.ws, name="Alpha")
+        sg = ServerGroup.objects.create(name="prod", project=p, workspace=self.ws)
+        Server.objects.create(
+            name="g", hostname="g", server_group=sg,
+        )
+
+        res = self.client.get("/api/servers/")
+        by_host = {s["hostname"]: s for s in res.data}
+        self.assertIsNone(by_host["u"]["project_name"])
+        self.assertEqual(by_host["g"]["project_name"], "Alpha")
+
     def test_server_status_filter(self):
         from datetime import timedelta
         from django.utils import timezone

@@ -530,7 +530,7 @@ class ServerViewSet(viewsets.ModelViewSet):
             return Server.objects.none()
         qs = (
             Server.objects.filter(server_group__workspace=ws)
-            .select_related("server_group")
+            .select_related("server_group", "server_group__project")
             .order_by("-last_seen", "name")
         )
         group_id = self.request.query_params.get("server_group")

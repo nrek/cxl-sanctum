@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   apiFetch,
   BillingStatus,
@@ -8,10 +8,13 @@ import {
   fetchBillingStatus,
   HealthStatus,
   openBillingPortal,
+  Server,
   startProCheckout,
   WorkspaceSummary,
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+
+const ACTIVE_CONNECTIONS_PAGE_SIZE = 8;
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "";
 
@@ -51,6 +54,8 @@ export default function DashboardPage() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [billingAction, setBillingAction] = useState(false);
+  const [servers, setServers] = useState<Server[] | null>(null);
+  const [connectionsPage, setConnectionsPage] = useState(0);
 
   const workspace: WorkspaceSummary | null = ctxWorkspace;
 
@@ -66,7 +71,29 @@ export default function DashboardPage() {
   useEffect(() => {
     apiFetch<DashboardStats>("/stats/").then(setStats);
     apiFetch<HealthStatus>("/health/").then(setHealth);
+    apiFetch<Server[]>("/servers/").then(setServers);
   }, []);
+
+  const activeConnections = useMemo(() => {
+    if (!servers) return [];
+    return servers.filter((s) => s.last_seen !== null);
+  }, [servers]);
+
+  const connectionsPageCount = Math.max(
+    1,
+    Math.ceil(activeConnections.length / ACTIVE_CONNECTIONS_PAGE_SIZE)
+  );
+
+  useEffect(() => {
+    if (connectionsPage >= connectionsPageCount) {
+      setConnectionsPage(Math.max(0, connectionsPageCount - 1));
+    }
+  }, [connectionsPage, connectionsPageCount]);
+
+  const pagedConnections = useMemo(() => {
+    const start = connectionsPage * ACTIVE_CONNECTIONS_PAGE_SIZE;
+    return activeConnections.slice(start, start + ACTIVE_CONNECTIONS_PAGE_SIZE);
+  }, [activeConnections, connectionsPage]);
 
   useEffect(() => {
     if (!wsLoading) {
@@ -212,9 +239,16 @@ export default function DashboardPage() {
       </div>
 
       <div className="sanctum-card p-6">
-        <h2 className="mb-2 text-lg font-semibold text-sanctum-mist">
-          Recent server activity
-        </h2>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-sanctum-mist">
+            Active Connections
+          </h2>
+          {activeConnections.length > 0 && (
+            <span className="text-xs text-sanctum-muted tabular-nums">
+              {activeConnections.length} total
+            </span>
+          )}
+        </div>
         <p className="mb-4 text-xs text-sanctum-muted">
           A server counts as online when its last heartbeat is within about 10
           minutes. If a host never appears or stays stale, check{" "}
@@ -223,25 +257,84 @@ export default function DashboardPage() {
           </code>
           , the provision token, and DNS reachability to the API on 443.
         </p>
-        {!stats || stats.recent_activity.length === 0 ? (
+        {servers === null ? (
+          <p className="text-sm text-sanctum-muted">Loading…</p>
+        ) : activeConnections.length === 0 ? (
           <p className="text-sm text-sanctum-muted">No heartbeats yet.</p>
         ) : (
-          <ul className="divide-y divide-sanctum-line/15">
-            {stats.recent_activity.map((s) => (
-              <li
-                key={s.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-              >
-                <span className="font-medium text-sanctum-mist">
-                  {s.hostname}
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-sanctum-line/25 text-left text-xs uppercase tracking-wider text-sanctum-muted">
+                    <th className="py-2 pr-4 font-medium">Project</th>
+                    <th className="py-2 pr-4 font-medium">Environment</th>
+                    <th className="py-2 pr-4 font-medium">Hostname</th>
+                    <th className="py-2 pr-4 font-medium">Public IP</th>
+                    <th className="py-2 pr-4 font-medium">Heartbeat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-sanctum-line/15">
+                  {pagedConnections.map((s) => (
+                    <tr key={s.id} className="text-sanctum-mist">
+                      <td className="py-2 pr-4 lowercase">
+                        {s.project_name ?? (
+                          <span className="text-sanctum-muted">ungrouped</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4">{s.server_group_name}</td>
+                      <td className="py-2 pr-4 font-mono text-xs">
+                        {s.hostname || s.name}
+                      </td>
+                      <td className="py-2 pr-4 font-mono text-xs">
+                        {s.ip_address || (
+                          <span className="text-sanctum-muted">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 text-xs text-sanctum-muted tabular-nums">
+                        {s.last_seen
+                          ? new Date(s.last_seen).toLocaleString()
+                          : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {connectionsPageCount > 1 && (
+              <div className="mt-4 flex items-center justify-between text-xs text-sanctum-muted">
+                <span className="tabular-nums">
+                  Page {connectionsPage + 1} of {connectionsPageCount}
                 </span>
-                <span className="text-sanctum-muted">{s.server_group_name}</span>
-                <span className="text-xs text-sanctum-muted">
-                  {s.last_seen ? new Date(s.last_seen).toLocaleString() : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConnectionsPage((p) => Math.max(0, p - 1))
+                    }
+                    disabled={connectionsPage === 0}
+                    className="btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <i className="fa-solid fa-chevron-left" aria-hidden />
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConnectionsPage((p) =>
+                        Math.min(connectionsPageCount - 1, p + 1)
+                      )
+                    }
+                    disabled={connectionsPage >= connectionsPageCount - 1}
+                    className="btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Next
+                    <i className="fa-solid fa-chevron-right" aria-hidden />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

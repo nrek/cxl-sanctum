@@ -380,6 +380,7 @@ export interface Server {
   hostname: string;
   server_group: number;
   server_group_name: string;
+  project_name: string | null;
   ip_address: string | null;
   last_seen: string | null;
   created_at: string;

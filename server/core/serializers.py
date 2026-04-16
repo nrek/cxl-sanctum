@@ -226,6 +226,7 @@ def server_status_for(last_seen, *, now=None):
 
 class ServerSerializer(serializers.ModelSerializer):
     server_group_name = serializers.CharField(source="server_group.name", read_only=True)
+    project_name = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     seconds_since_seen = serializers.SerializerMethodField()
     likely_replaced_by = serializers.SerializerMethodField()
@@ -233,18 +234,24 @@ class ServerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Server
         fields = [
-            "id", "name", "hostname", "server_group", "server_group_name",
+            "id", "name", "hostname",
+            "server_group", "server_group_name", "project_name",
             "ip_address", "last_seen", "created_at",
             "status", "seconds_since_seen", "likely_replaced_by",
         ]
         read_only_fields = [
             "id", "last_seen", "created_at",
+            "project_name",
             "status", "seconds_since_seen", "likely_replaced_by",
         ]
 
     def _now(self):
         cached = self.context.get("_now") if hasattr(self, "context") else None
         return cached or timezone.now()
+
+    def get_project_name(self, obj):
+        project = getattr(obj.server_group, "project", None)
+        return project.name if project else None
 
     def get_seconds_since_seen(self, obj):
         if obj.last_seen is None:
