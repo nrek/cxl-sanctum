@@ -17,6 +17,10 @@ DEBUG = os.environ.get("SANCTUM_DEBUG", "true").lower() in ("true", "1", "yes")
 
 ALLOWED_HOSTS = os.environ.get("SANCTUM_ALLOWED_HOSTS", "*").split(",")
 
+# When behind a TLS-terminating reverse proxy (Apache, nginx, etc.),
+# trust X-Forwarded-Proto so build_absolute_uri() returns https:// URLs.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

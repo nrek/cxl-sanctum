@@ -173,7 +173,7 @@ def generate_provision_script(server_group, request=None):
     if base_url:
         lines.extend([
             "# --- Heartbeat ---",
-            f"curl -sS -X POST {shlex.quote(base_url + '/api/heartbeat/' + token + '/')} \\",
+            f"curl -sSL -X POST {shlex.quote(base_url + '/api/heartbeat/' + token + '/')} \\",
             '  -d "hostname=$(hostname)" &>/dev/null || true',
         ])
 
