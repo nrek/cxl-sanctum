@@ -44,6 +44,43 @@ VENV="${VENV:-$SANCTUM_ROOT/venv}"
 ENV_FILE="${ENV_FILE:-/etc/sanctum.env}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}"
 
+preflight_writable() {
+  local dir=$1
+  local label=$2
+  if [[ ! -w "$dir" ]]; then
+    cat >&2 <<EOF
+error: $label not writable by $(id -un): $dir
+
+Multiple operators? Grant shared group ownership once, then re-run:
+
+  sudo groupadd -f sanctum
+  sudo usermod -aG sanctum \$(id -un)
+  sudo chown -R \$(stat -c '%U' "$dir"):sanctum "$SANCTUM_ROOT"
+  sudo find "$SANCTUM_ROOT" -type d -exec chmod 2775 {} \;
+  sudo find "$SANCTUM_ROOT" -type f -exec chmod g+rw {} \;
+  # log out and back in (or run: newgrp sanctum) to pick up the new group
+EOF
+    exit 1
+  fi
+}
+
+preflight_git_trust() {
+  local dir=$1
+  if ! git -C "$dir" rev-parse HEAD >/dev/null 2>&1; then
+    cat >&2 <<EOF
+error: git cannot operate in $dir as $(id -un).
+
+If you see 'dubious ownership', the repo owner (uid) differs from yours.
+Group membership is not enough — tell git to trust the path:
+
+  sudo git config --system --add safe.directory $dir
+
+Then re-run this script.
+EOF
+    exit 1
+  fi
+}
+
 prompt_yn() {
   local prompt=$1
   local default=${2:-N}
@@ -91,6 +128,11 @@ echo "  env file: $ENV_FILE (optional)"
 echo "  NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
 echo
 
+[[ -d "$CORE_REPO/.git" ]] || die "not a git repo: $CORE_REPO"
+preflight_writable "$CORE_REPO" "repo"
+preflight_writable "$CORE_REPO/.git" ".git directory"
+preflight_git_trust "$CORE_REPO"
+
 CHANGED_CORE=0
 
 if prompt_yn "Pull latest from git (cxl-sanctum)?" Y; then
@@ -104,6 +146,7 @@ if prompt_yn "Pull latest from git (cxl-sanctum)?" Y; then
 fi
 
 if [[ "$CHANGED_CORE" -eq 1 ]]; then
+  preflight_writable "$VENV" "venv"
   echo
   echo ">>> pip install (server/requirements.txt)"
   activate_venv

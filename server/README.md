@@ -71,6 +71,33 @@ For a real deployment, align these so provisioning and the UI both work:
 | **Servers → API** | Cron jobs use `curl` to your provision URL; use HTTPS in production (tokens appear in the path). |
 | **Database** | Use PostgreSQL in production (`SANCTUM_DB_*`); run migrations after deploy. |
 
+### Multi-operator repo permissions
+
+If more than one shell user will run `scripts/sanctum-update.sh` (for example, the cloud-provider default user **and** your own admin account), set up a shared group once so `git pull`, `pip install`, and `npm ci` don't hit ownership walls:
+
+```bash
+sudo groupadd -f sanctum
+sudo usermod -aG sanctum "$(id -un)"           # and repeat for each operator
+sudo chown -R "$(stat -c '%U' /opt/sanctum/cxl-sanctum)":sanctum /opt/sanctum
+sudo find /opt/sanctum -type d -exec chmod 2775 {} \;
+sudo find /opt/sanctum -type f -exec chmod g+rw {} \;
+# log out and back in (or: newgrp sanctum) to pick up group membership
+```
+
+The `2775` mode on directories sets the **setgid** bit so new files (e.g. after `git pull`, `npm install`) inherit the `sanctum` group automatically.
+
+Group membership alone does **not** clear git's `dubious ownership` check — that check compares the repo owner's **uid** to yours. Add the path to git's system-wide trust list once:
+
+```bash
+sudo git config --system --add safe.directory /opt/sanctum/cxl-sanctum
+```
+
+After both steps, the `dubious ownership` warning and `Permission denied` on `.git/FETCH_HEAD` are gone, and the in-repo script is the canonical entry point:
+
+```bash
+/opt/sanctum/cxl-sanctum/scripts/sanctum-update.sh
+```
+
 ## Workflow
 
 1. **Create teams** (e.g. "Backend", "DevOps", "Client A Frontend")
