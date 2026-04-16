@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import MainShell from "@/components/MainShell";
 import AuthProvider from "@/components/AuthProvider";
+import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 
 const shareTechMono = Share_Tech_Mono({
   weight: "400",
@@ -26,8 +27,10 @@ export default function RootLayout({
     <html lang="en" className={shareTechMono.variable}>
       <body className="min-h-screen bg-sanctum-ink font-sans text-sanctum-mist">
         <AuthProvider>
-          <Sidebar />
-          <MainShell>{children}</MainShell>
+          <WorkspaceProvider>
+            <Sidebar />
+            <MainShell>{children}</MainShell>
+          </WorkspaceProvider>
         </AuthProvider>
       </body>
     </html>

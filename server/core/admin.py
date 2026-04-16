@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
     Workspace,
+    WorkspaceAdmin,
     Project,
     Team,
     Member,
@@ -12,7 +13,7 @@ from .models import (
 
 
 @admin.register(Workspace)
-class WorkspaceAdmin(admin.ModelAdmin):
+class WorkspaceModelAdmin(admin.ModelAdmin):
     list_display = ("name", "owner", "created_at")
     search_fields = ("name", "owner__username")
 
@@ -78,3 +79,9 @@ class ServerAdmin(admin.ModelAdmin):
 class AssignmentAdmin(admin.ModelAdmin):
     list_display = ("team", "member", "server_group", "role", "updated_at")
     list_filter = ("role", "server_group")
+
+
+@admin.register(WorkspaceAdmin)
+class WorkspaceAdminAccountAdmin(admin.ModelAdmin):
+    list_display = ("user", "workspace", "created_at")
+    search_fields = ("user__username", "workspace__name")

@@ -8,6 +8,7 @@ from .models import (
     ServerGroup,
     Server,
     Assignment,
+    WorkspaceAdmin,
 )
 from .workspace import get_request_workspace
 
@@ -250,3 +251,19 @@ class AssignmentSerializer(serializers.ModelSerializer):
                 "This user’s access is globally revoked. Restore access on the Members page before granting user or sudo."
             )
         return attrs
+
+
+class WorkspaceAdminSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+
+    class Meta:
+        model = WorkspaceAdmin
+        fields = ["id", "user_id", "username", "email", "created_at"]
+
+
+class WorkspaceAdminCreateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, min_length=1)
+    email = serializers.EmailField(required=False, allow_blank=True, default="")

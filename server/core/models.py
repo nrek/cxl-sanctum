@@ -17,6 +17,25 @@ class Workspace(models.Model):
         return self.name or f"Workspace ({self.owner.username})"
 
 
+class WorkspaceAdmin(models.Model):
+    """Django user who can manage the owner's workspace (not billing)."""
+
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name="workspace_admins",
+    )
+    user = models.OneToOneField(
+        "auth.User",
+        on_delete=models.CASCADE,
+        related_name="workspace_admin_of",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.workspace_id}"
+
+
 class Project(models.Model):
     workspace = models.ForeignKey(
         Workspace,

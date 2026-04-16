@@ -11,7 +11,7 @@ Optional: try **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** wit
 | **`server/`** | Django + DRF API (`manage.py`, `sanctum/`, `core/`). |
 | **`ui/`** | Next.js 14 app (App Router, Tailwind). |
 
-Hosted billing (Stripe) for the managed product is implemented in a separate codebase, **cxl-sanctum-saas**, which loads this API from `server/` via `SANCTUM_CORE_ROOT`. Self-hosted installs use this repo only.
+A separate optional **hosted** product adds billing and usage tiers; see [server/docs/OSS_AND_HOSTED.md](server/docs/OSS_AND_HOSTED.md). **Self-hosted** installs use this repository only (no billing repo).
 
 ## Development
 

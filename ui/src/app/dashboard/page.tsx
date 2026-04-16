@@ -6,11 +6,11 @@ import {
   BillingStatus,
   DashboardStats,
   fetchBillingStatus,
-  fetchWorkspaceSummary,
   openBillingPortal,
   startProCheckout,
   WorkspaceSummary,
 } from "@/lib/api";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "";
 
@@ -25,20 +25,31 @@ const STAT_CARDS = [
 ];
 
 export default function DashboardPage() {
+  const { workspace: ctxWorkspace, loading: wsLoading } = useWorkspace();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [billingAction, setBillingAction] = useState(false);
 
-  const loadMeta = useCallback(() => {
-    fetchWorkspaceSummary().then(setWorkspace).catch(() => setWorkspace(null));
+  const workspace: WorkspaceSummary | null = ctxWorkspace;
+
+  const loadBilling = useCallback(() => {
+    const role = workspace?.role ?? "owner";
+    if (!workspace || role !== "owner") {
+      setBilling(null);
+      return;
+    }
     fetchBillingStatus().then(setBilling);
-  }, []);
+  }, [workspace]);
 
   useEffect(() => {
     apiFetch<DashboardStats>("/stats/").then(setStats);
-    loadMeta();
-  }, [loadMeta]);
+  }, []);
+
+  useEffect(() => {
+    if (!wsLoading) {
+      loadBilling();
+    }
+  }, [wsLoading, loadBilling]);
 
   const envLabel = () => {
     if (!workspace) return null;
@@ -70,7 +81,8 @@ export default function DashboardPage() {
     }
   };
 
-  const showHostedBilling = billing !== null;
+  const isOwner = (workspace?.role ?? "owner") === "owner";
+  const showHostedBilling = isOwner && billing !== null;
 
   return (
     <div className="p-8">

@@ -159,10 +159,50 @@ export interface WorkspaceSummary {
   environment_count: number;
   environment_limit: number | null;
   deployment_mode: string;
+  /** Account owner vs workspace admin (team lead). Omitted on older APIs (treated as owner). */
+  role?: "owner" | "admin";
 }
 
 export async function fetchWorkspaceSummary(): Promise<WorkspaceSummary> {
   return apiFetch<WorkspaceSummary>("/workspace/");
+}
+
+/** GET /workspace-admins/ — owner only. */
+export interface WorkspaceAdminEntry {
+  id: number;
+  user_id: number;
+  username: string;
+  email: string;
+  created_at: string;
+}
+
+export async function fetchWorkspaceAdmins(): Promise<WorkspaceAdminEntry[]> {
+  return apiFetch<WorkspaceAdminEntry[]>("/workspace-admins/");
+}
+
+export async function createWorkspaceAdmin(payload: {
+  username: string;
+  password: string;
+  email?: string;
+}): Promise<WorkspaceAdminEntry> {
+  return apiFetch<WorkspaceAdminEntry>("/workspace-admins/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWorkspaceAdmin(id: number): Promise<void> {
+  await apiFetch(`/workspace-admins/${id}/`, { method: "DELETE" });
+}
+
+export async function resetWorkspaceAdminPassword(
+  id: number,
+  newPassword: string
+): Promise<void> {
+  await apiFetch(`/workspace-admins/${id}/reset-password/`, {
+    method: "POST",
+    body: JSON.stringify({ new_password: newPassword }),
+  });
 }
 
 /** GET /billing/status/ — hosted SaaS only; returns null on OSS / missing route. */

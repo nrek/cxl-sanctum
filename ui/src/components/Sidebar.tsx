@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/lib/api";
 import { isPublicRoute } from "@/lib/routes";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
-const NAV: {
+const BASE_NAV: {
   href: string;
   label: string;
   icon: string;
@@ -22,7 +23,21 @@ const NAV: {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { workspace } = useWorkspace();
+
   if (isPublicRoute(pathname)) return null;
+
+  const nav =
+    (workspace?.role ?? "owner") === "owner"
+      ? [
+          ...BASE_NAV,
+          {
+            href: "/admins",
+            label: "Admins",
+            icon: "fa-solid fa-user-shield",
+          },
+        ]
+      : BASE_NAV;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-sanctum-line/20 bg-[#182a35]">
@@ -36,7 +51,7 @@ export default function Sidebar() {
         <i className="fa-solid fa-key text-sanctum-accent text-sm" aria-hidden />
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active =
             item.href === "/dashboard"
               ? pathname === "/dashboard"

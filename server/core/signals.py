@@ -7,6 +7,8 @@ from django.dispatch import receiver
 def ensure_workspace_for_new_user(sender, instance, created, **kwargs):
     if not created:
         return
+    if getattr(instance, "_skip_workspace_creation", False):
+        return
     from .models import Workspace
 
     Workspace.objects.get_or_create(

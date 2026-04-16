@@ -1,6 +1,9 @@
 import uuid
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from django.db.models import Count
@@ -8,13 +11,14 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.conf import settings as django_settings
 from django.utils import timezone
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, mixins
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .environment_policy import check_environment_creation, get_environment_limit
 from .workspace import get_request_workspace
+from .permissions import IsWorkspaceOwner
 
 from .models import (
     Team,
@@ -24,6 +28,7 @@ from .models import (
     ServerGroup,
     Server,
     Assignment,
+    WorkspaceAdmin,
 )
 from .serializers import (
     TeamSerializer,
@@ -36,6 +41,8 @@ from .serializers import (
     ServerGroupSerializer,
     ServerSerializer,
     AssignmentSerializer,
+    WorkspaceAdminSerializer,
+    WorkspaceAdminCreateSerializer,
 )
 from .provision import generate_provision_script
 from .member_access import revoke_member_globally, restore_member_access
@@ -526,6 +533,92 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 
+class WorkspaceAdminViewSet(
+    mixins.ListModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Owner-only: create Django users who manage the workspace (not billing)."""
+
+    permission_classes = [IsWorkspaceOwner]
+
+    def get_queryset(self):
+        ws = get_request_workspace(self.request)
+        if ws is None:
+            return WorkspaceAdmin.objects.none()
+        return (
+            WorkspaceAdmin.objects.filter(workspace=ws)
+            .select_related("user")
+            .order_by("user__username")
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return WorkspaceAdminCreateSerializer
+        return WorkspaceAdminSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = WorkspaceAdminCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ws = get_request_workspace(request)
+        if ws is None:
+            raise ValidationError("No workspace for this account.")
+        username = (serializer.validated_data.get("username") or "").strip()
+        password = serializer.validated_data["password"]
+        email = (serializer.validated_data.get("email") or "").strip()
+
+        User = get_user_model()
+        if not username:
+            raise ValidationError({"username": "Username is required."})
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError(
+                {"username": "A user with that username already exists."}
+            )
+        if ws.owner.username.lower() == username.lower():
+            raise ValidationError(
+                {"username": "That username is the workspace owner."}
+            )
+        try:
+            validate_password(password)
+        except DjangoValidationError as e:
+            raise ValidationError({"password": list(e.messages)})
+
+        user = User(username=username, email=email or "")
+        user.set_password(password)
+        user._skip_workspace_creation = True
+        user.save()
+
+        wa = WorkspaceAdmin.objects.create(workspace=ws, user=user)
+        out = WorkspaceAdminSerializer(wa, context={"request": request})
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+    def perform_destroy(self, instance):
+        instance.user.delete()
+
+    @action(detail=True, methods=["post"], url_path="reset-password")
+    def reset_password(self, request, pk=None):
+        admin = self.get_object()
+        new_password = request.data.get("new_password") or ""
+        if not new_password:
+            return Response(
+                {"detail": "new_password is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            validate_password(new_password, user=admin.user)
+        except DjangoValidationError as e:
+            return Response(
+                {"detail": " ".join(e.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        admin.user.set_password(new_password)
+        admin.user.save()
+        from rest_framework.authtoken.models import Token
+
+        Token.objects.filter(user=admin.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def provision_view(request, token):
@@ -606,6 +699,7 @@ def workspace_summary(request):
         )
     env_count = ServerGroup.objects.filter(workspace=ws).count()
     limit = get_environment_limit(ws)
+    role = "owner" if ws.owner_id == request.user.id else "admin"
     return Response({
         "id": ws.id,
         "name": ws.name,
@@ -614,4 +708,5 @@ def workspace_summary(request):
         "deployment_mode": getattr(
             django_settings, "SANCTUM_DEPLOYMENT_MODE", "self_hosted"
         ),
+        "role": role,
     })

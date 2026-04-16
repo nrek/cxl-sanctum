@@ -9,6 +9,11 @@ router.register(r"members", views.MemberViewSet, basename="member")
 router.register(r"server-groups", views.ServerGroupViewSet, basename="servergroup")
 router.register(r"servers", views.ServerViewSet, basename="server")
 router.register(r"assignments", views.AssignmentViewSet, basename="assignment")
+router.register(
+    r"workspace-admins",
+    views.WorkspaceAdminViewSet,
+    basename="workspaceadmin",
+)
 
 urlpatterns = [
     path("", include(router.urls)),
