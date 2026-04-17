@@ -17,7 +17,7 @@ export default function MainShell({
       className={
         fullBleed
           ? "min-h-screen"
-          : "min-h-screen pt-14 pb-20 md:ml-60 md:pt-0 md:pb-0"
+          : "min-h-screen pb-20 md:ml-60 md:pb-0"
       }
     >
       {children}
