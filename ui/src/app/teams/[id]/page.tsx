@@ -89,11 +89,11 @@ export default function TeamDetailPage() {
   };
 
   if (!team) {
-    return <div className="p-8 text-sanctum-muted">Loading...</div>;
+    return <div className="p-4 sm:p-6 lg:p-8 text-sanctum-muted">Loading...</div>;
   }
 
   return (
-    <div className="max-w-4xl p-8">
+    <div className="max-w-4xl p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <Link href="/teams" className="link-accent text-sm">
           &larr; Teams
@@ -175,6 +175,7 @@ export default function TeamDetailPage() {
           </button>
         </form>
 
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-sanctum-line/15">
           <thead className="bg-sanctum-ink/60">
             <tr>
@@ -227,6 +228,7 @@ export default function TeamDetailPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Modal

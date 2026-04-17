@@ -40,7 +40,7 @@ export default function Sidebar() {
       : BASE_NAV;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-sanctum-line/20 bg-[#182a35]">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-sanctum-line/20 bg-[#182a35] md:flex">
       <div className="flex h-16 items-center justify-center gap-2 border-b border-sanctum-line/15 px-4">
         <Link
           href="/dashboard"

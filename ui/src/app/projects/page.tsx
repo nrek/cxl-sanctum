@@ -89,7 +89,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-sanctum-mist">Projects</h1>
         <button

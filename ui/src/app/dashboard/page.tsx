@@ -136,7 +136,7 @@ export default function DashboardPage() {
   const showHostedBilling = isOwner && billing !== null;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <h1 className="mb-6 text-2xl font-bold text-sanctum-mist">Dashboard</h1>
 
       {workspace && (

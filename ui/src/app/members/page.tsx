@@ -220,7 +220,7 @@ export default function MembersPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-sanctum-mist">Members</h1>
         <button type="button" onClick={openCreate} className="btn-primary">

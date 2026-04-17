@@ -149,7 +149,7 @@ export default function AdminsPage() {
 
   if (wsLoading) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <p className="text-sanctum-muted">Loading…</p>
       </div>
     );
@@ -157,7 +157,7 @@ export default function AdminsPage() {
 
   if ((workspace?.role ?? "owner") !== "owner") {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <h1 className="mb-4 text-2xl font-bold text-sanctum-mist">Admins</h1>
         <p className="text-sanctum-muted">
           Only the workspace owner can manage dashboard admins.{" "}
@@ -170,7 +170,7 @@ export default function AdminsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-sanctum-mist">Workspace admins</h1>
         <p className="mt-1 text-sm text-sanctum-muted">
@@ -244,6 +244,7 @@ export default function AdminsPage() {
       ) : null}
 
       <div className="sanctum-card overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-sanctum-line/15">
           <thead className="bg-sanctum-ink/60">
             <tr>
@@ -309,6 +310,7 @@ export default function AdminsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Modal

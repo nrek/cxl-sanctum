@@ -309,7 +309,7 @@ export default function ProjectDetailPage() {
 
   if (!project || !access) {
     return (
-      <div className="p-8 text-sanctum-muted">Loading...</div>
+      <div className="p-4 sm:p-6 lg:p-8 text-sanctum-muted">Loading...</div>
     );
   }
 
@@ -321,7 +321,7 @@ export default function ProjectDetailPage() {
     revokedRows.length > 0;
 
   return (
-    <div className="max-w-6xl p-8">
+    <div className="max-w-6xl p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <Link href="/projects" className="link-accent text-sm">
           &larr; Projects

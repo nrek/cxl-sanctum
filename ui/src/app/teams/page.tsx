@@ -56,7 +56,7 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-sanctum-mist">Teams</h1>
         <button type="button" onClick={openCreate} className="btn-primary">
@@ -66,6 +66,7 @@ export default function TeamsPage() {
       </div>
 
       <div className="sanctum-card overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-sanctum-line/15">
           <thead className="bg-sanctum-ink/60">
             <tr>
@@ -139,6 +140,7 @@ export default function TeamsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Modal
