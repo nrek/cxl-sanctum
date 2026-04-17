@@ -76,7 +76,7 @@ export default function TeamsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
                 Members
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
+              <th className="hidden px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted sm:table-cell">
                 Description
               </th>
               <th className="px-6 py-3" />
@@ -96,7 +96,7 @@ export default function TeamsPage() {
                 <td className="px-6 py-4 text-sanctum-muted">
                   {team.member_count ?? 0}
                 </td>
-                <td className="px-6 py-4 text-sm text-sanctum-muted">
+                <td className="hidden px-6 py-4 text-sm text-sanctum-muted sm:table-cell">
                   {team.description || "\u2014"}
                 </td>
                 <td className="px-6 py-4 text-right">

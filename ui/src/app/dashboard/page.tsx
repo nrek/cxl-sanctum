@@ -13,8 +13,6 @@ import {
   WorkspaceSummary,
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { classifyIp } from "@/lib/ip";
-
 const ACTIVE_CONNECTIONS_PAGE_SIZE = 8;
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "";
@@ -271,7 +269,6 @@ export default function DashboardPage() {
                     <th className="py-2 pr-4 font-medium">Project</th>
                     <th className="py-2 pr-4 font-medium">Environment</th>
                     <th className="py-2 pr-4 font-medium">Hostname</th>
-                    <th className="py-2 pr-4 font-medium">Public IP</th>
                     <th className="py-2 pr-4 font-medium">Heartbeat</th>
                   </tr>
                 </thead>
@@ -286,19 +283,6 @@ export default function DashboardPage() {
                       <td className="py-2 pr-4">{s.server_group_name}</td>
                       <td className="py-2 pr-4 font-mono text-xs">
                         {s.hostname || s.name}
-                      </td>
-                      <td className="py-2 pr-4 font-mono text-xs">
-                        {(() => {
-                          const kind = classifyIp(s.ip_address);
-                          if (kind === "public") return s.ip_address;
-                          if (kind === "proxied")
-                            return (
-                              <span className="text-xs font-semibold uppercase tracking-wider text-sanctum-muted">
-                                proxied
-                              </span>
-                            );
-                          return <span className="text-sanctum-muted">—</span>;
-                        })()}
                       </td>
                       <td className="py-2 pr-4 text-xs text-sanctum-muted tabular-nums">
                         {s.last_seen

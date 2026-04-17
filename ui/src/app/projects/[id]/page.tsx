@@ -48,6 +48,16 @@ export default function ProjectDetailPage() {
   const [deletingEnv, setDeletingEnv] = useState(false);
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", description: "" });
+  const [expandedEnvs, setExpandedEnvs] = useState<Set<number>>(new Set());
+
+  const toggleEnv = (envId: number) => {
+    setExpandedEnvs((prev) => {
+      const next = new Set(prev);
+      if (next.has(envId)) next.delete(envId);
+      else next.add(envId);
+      return next;
+    });
+  };
 
   const apiBase =
     typeof window !== "undefined" ? getApiBase() : "";
@@ -90,6 +100,23 @@ export default function ProjectDetailPage() {
 
   const serversForGroup = (gid: number) =>
     serversInProject.filter((s) => s.server_group === gid);
+
+  const envStatusDot = (
+    gid: number
+  ): { cls: string; label: string } => {
+    const list = serversForGroup(gid);
+    if (list.length === 0)
+      return {
+        cls: "bg-sanctum-line/50",
+        label: "No servers reporting yet",
+      };
+    if (list.every((s) => s.status === "online"))
+      return { cls: "bg-success", label: "All servers online" };
+    return {
+      cls: "bg-warning",
+      label: "One or more servers are stale or dead",
+    };
+  };
 
   const activeMembers = useMemo(
     () => members.filter((m) => !m.access_revoked),
@@ -444,51 +471,85 @@ export default function ProjectDetailPage() {
             </p>
             {access.environments.map((env) => {
               const cnt = serverCountForGroup(env.id);
+              const dot = envStatusDot(env.id);
+              const expanded = expandedEnvs.has(env.id);
               return (
                 <div
                   key={env.id}
-                  className="rounded-lg border border-sanctum-line/20 bg-sanctum-ink/50 p-4"
+                  className="overflow-hidden rounded-lg border border-sanctum-line/20 bg-sanctum-ink/50"
                 >
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium text-sanctum-mist">
-                      {env.name}
+                  <button
+                    type="button"
+                    onClick={() => toggleEnv(env.id)}
+                    aria-expanded={expanded}
+                    aria-controls={`env-body-${env.id}`}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sanctum-ink/70"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot.cls}`}
+                        title={dot.label}
+                        aria-hidden
+                      />
+                      <span className="truncate font-medium text-sanctum-mist">
+                        {env.name}
+                      </span>
+                      <span className="sr-only">{dot.label}</span>
                     </span>
-                    <span className="text-sm text-sanctum-muted">
-                      {cnt} server{cnt === 1 ? "" : "s"}
+                    <span className="flex shrink-0 items-center gap-3 text-sm text-sanctum-muted">
+                      <span className="tabular-nums">
+                        {cnt} server{cnt === 1 ? "" : "s"}
+                      </span>
+                      <i
+                        className={`fa-solid text-xs ${
+                          expanded ? "fa-chevron-up" : "fa-chevron-down"
+                        }`}
+                        aria-hidden
+                      />
                     </span>
-                  </div>
-                  <ProvisionSnippets
-                    apiBase={apiBase}
-                    token={env.provision_token}
-                  />
-                  <ServerInventory
-                    servers={serversForGroup(env.id)}
-                    environmentId={env.id}
-                    environmentName={env.name}
-                    onChange={loadServers}
-                  />
-                  <div className="mt-3 flex items-center gap-1">
-                    <Tooltip label="Regenerate provision token (invalidates old curl URL)">
-                      <button
-                        type="button"
-                        onClick={() => handleRegenerateToken(env.id)}
-                        className="icon-btn text-warning hover:text-warning-dim"
-                        aria-label="Regenerate provision token"
-                      >
-                        <i className="fa-solid fa-arrows-rotate" aria-hidden />
-                      </button>
-                    </Tooltip>
-                    <Tooltip label="Remove this environment (assignments and server records are deleted)">
-                      <button
-                        type="button"
-                        onClick={() => openDeleteEnvironment(env)}
-                        className="icon-btn-danger"
-                        aria-label={`Remove environment ${env.name}`}
-                      >
-                        <i className="fa-solid fa-trash" aria-hidden />
-                      </button>
-                    </Tooltip>
-                  </div>
+                  </button>
+                  {expanded && (
+                    <div
+                      id={`env-body-${env.id}`}
+                      className="space-y-3 border-t border-sanctum-line/15 px-4 py-4"
+                    >
+                      <ProvisionSnippets
+                        apiBase={apiBase}
+                        token={env.provision_token}
+                      />
+                      <ServerInventory
+                        servers={serversForGroup(env.id)}
+                        environmentId={env.id}
+                        environmentName={env.name}
+                        onChange={loadServers}
+                      />
+                      <div className="flex items-center gap-1">
+                        <Tooltip label="Regenerate provision token (invalidates old curl URL)">
+                          <button
+                            type="button"
+                            onClick={() => handleRegenerateToken(env.id)}
+                            className="icon-btn text-warning hover:text-warning-dim"
+                            aria-label="Regenerate provision token"
+                          >
+                            <i
+                              className="fa-solid fa-arrows-rotate"
+                              aria-hidden
+                            />
+                          </button>
+                        </Tooltip>
+                        <Tooltip label="Remove this environment (assignments and server records are deleted)">
+                          <button
+                            type="button"
+                            onClick={() => openDeleteEnvironment(env)}
+                            className="icon-btn-danger"
+                            aria-label={`Remove environment ${env.name}`}
+                          >
+                            <i className="fa-solid fa-trash" aria-hidden />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

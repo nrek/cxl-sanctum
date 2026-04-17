@@ -349,12 +349,14 @@ export default function MembersPage() {
                     className="flex items-center justify-between rounded border border-sanctum-line/15 bg-sanctum-ink/40 px-3 py-2 text-sm"
                   >
                     <div className="min-w-0 flex-1">
-                      <span className="font-medium text-sanctum-mist">
-                        {k.label || "Unnamed key"}
-                      </span>
-                      <span className="ml-2 truncate text-sanctum-muted">
-                        {k.public_key.substring(0, 50)}...
-                      </span>
+                      <div className="truncate">
+                        <span className="font-medium text-sanctum-mist">
+                          {k.label || "Unnamed key"}
+                        </span>
+                        <span className="ml-2 font-mono text-xs text-sanctum-muted">
+                          {k.public_key}
+                        </span>
+                      </div>
                     </div>
                     <div className="ml-2 flex shrink-0 items-center gap-0.5">
                       <Tooltip label="Edit label or public key">
