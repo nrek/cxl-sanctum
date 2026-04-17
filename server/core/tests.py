@@ -271,6 +271,41 @@ class APITests(TestCase):
         self.assertEqual(res.status_code, 204)
         self.assertEqual(m.ssh_keys.count(), 0)
 
+    def test_member_update_key_rename(self):
+        m = Member.objects.create(username="ed", workspace=self.ws)
+        key = SSHKey.objects.create(
+            member=m,
+            label="old",
+            public_key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample ed@host",
+        )
+        res = self.client.patch(
+            f"/api/members/{m.id}/keys/{key.id}/",
+            {
+                "label": "renamed",
+                "public_key": key.public_key,
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        key.refresh_from_db()
+        self.assertEqual(key.label, "renamed")
+
+    def test_member_update_key_label_only(self):
+        m = Member.objects.create(username="mallory", workspace=self.ws)
+        key = SSHKey.objects.create(
+            member=m,
+            label="",
+            public_key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample mal@host",
+        )
+        res = self.client.patch(
+            f"/api/members/{m.id}/keys/{key.id}/",
+            {"label": "  Laptop  "},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        key.refresh_from_db()
+        self.assertEqual(key.label, "Laptop")
+
     def test_server_groups_crud(self):
         res = self.client.post(
             "/api/server-groups/", {"name": "production"}, format="json"

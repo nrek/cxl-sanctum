@@ -41,6 +41,7 @@ export default function MembersPage() {
   } | null>(null);
   const [editKeyForm, setEditKeyForm] = useState({ label: "", public_key: "" });
   const [editKeySaving, setEditKeySaving] = useState(false);
+  const [editKeyError, setEditKeyError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiFetch<Member[]>("/members/").then(setMembers);
@@ -192,12 +193,14 @@ export default function MembersPage() {
       label: key.label || "",
       public_key: key.public_key,
     });
+    setEditKeyError(null);
   };
 
   const handleSaveEditKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editKeyTarget) return;
     setEditKeySaving(true);
+    setEditKeyError(null);
     try {
       await patchMemberSSHKey(editKeyTarget.member.id, editKeyTarget.key.id, {
         label: editKeyForm.label.trim(),
@@ -205,6 +208,21 @@ export default function MembersPage() {
       });
       setEditKeyTarget(null);
       load();
+    } catch (err) {
+      let msg = "Could not save changes. Please try again.";
+      if (err instanceof Error && err.message) {
+        try {
+          const parsed = JSON.parse(err.message) as Record<string, unknown>;
+          const first =
+            (Array.isArray(parsed.label) && parsed.label[0]) ||
+            (Array.isArray(parsed.public_key) && parsed.public_key[0]) ||
+            (typeof parsed.detail === "string" ? parsed.detail : null);
+          if (typeof first === "string") msg = first;
+        } catch {
+          if (err.message.length < 300) msg = err.message;
+        }
+      }
+      setEditKeyError(msg);
     } finally {
       setEditKeySaving(false);
     }
@@ -465,9 +483,11 @@ export default function MembersPage() {
         open={keyModalOpen}
         onClose={() => {
           if (generatedKey && !acknowledged) return;
+          const savedKey = generatedKey !== null;
           setKeyModalOpen(false);
           setGeneratedKey(null);
           setAcknowledged(false);
+          if (savedKey) load();
         }}
         title={`Add SSH Key \u2014 ${keyTarget?.username ?? ""}`}
       >
@@ -647,7 +667,10 @@ export default function MembersPage() {
 
       <Modal
         open={editKeyTarget !== null}
-        onClose={() => setEditKeyTarget(null)}
+        onClose={() => {
+          setEditKeyTarget(null);
+          setEditKeyError(null);
+        }}
         title={
           editKeyTarget
             ? `Edit SSH key — ${editKeyTarget.member.username}`
@@ -655,6 +678,14 @@ export default function MembersPage() {
         }
       >
         <form onSubmit={(e) => void handleSaveEditKey(e)} className="space-y-4">
+          {editKeyError && (
+            <div
+              role="alert"
+              className="rounded-md border border-danger/40 bg-danger-surface px-3 py-2 text-sm text-danger"
+            >
+              {editKeyError}
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-sm font-medium text-sanctum-mist">
               Label

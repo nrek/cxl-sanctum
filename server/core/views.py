@@ -150,13 +150,6 @@ class MemberViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=["delete"], url_path=r"keys/(?P<key_id>[^/.]+)")
-    def remove_key(self, request, pk=None, key_id=None):
-        member = self.get_object()
-        key = get_object_or_404(SSHKey, pk=key_id, member=member)
-        key.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
     @action(detail=True, methods=["patch"], url_path=r"keys/(?P<key_id>[^/.]+)")
     def update_key(self, request, pk=None, key_id=None):
         member = self.get_object()
@@ -170,6 +163,13 @@ class MemberViewSet(viewsets.ModelViewSet):
             SSHKeySerializer(key, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+    @update_key.mapping.delete
+    def remove_key(self, request, pk=None, key_id=None):
+        member = self.get_object()
+        key = get_object_or_404(SSHKey, pk=key_id, member=member)
+        key.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"], url_path="generate-key")
     def generate_key(self, request, pk=None):
