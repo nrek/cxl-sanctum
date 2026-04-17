@@ -1,6 +1,6 @@
 # cxl-sanctum
 
-Monorepo for **Sanctum**: open-source SSH access management—a Django REST API (**`server/`**) and a Next.js dashboard (**`ui/`**) you self-host to manage teams, SSH keys, projects, and provisioning scripts on your machines.
+Monorepo for **Sanctum**: open-source SSH access management: a Django REST API (**`server/`**) and a Next.js dashboard (**`ui/`**) you self-host to manage teams, SSH keys, projects, and provisioning scripts on your machines.
 
 **Try it:** use **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** for a hosted experience (free tier), or **run this repo** on your own infrastructure for full control.
 
