@@ -174,7 +174,17 @@ if [[ "$RUN_BUILD" -eq 1 ]]; then
   echo ">>> copy Next standalone static assets (if using standalone output)"
   if [[ -d "$CORE_REPO/ui/.next/standalone" ]]; then
     mkdir -p "$CORE_REPO/ui/.next/standalone/.next"
+    # .next/static — hashed JS/CSS bundles.
+    rm -rf "$CORE_REPO/ui/.next/standalone/.next/static"
     cp -r "$CORE_REPO/ui/.next/static" "$CORE_REPO/ui/.next/standalone/.next/static"
+    # public/ — static assets like /og/*.png, /favicon.ico. Next's minimal
+    # standalone server does NOT serve these unless they live next to
+    # server.js; without this copy, URLs like /og/sanctum.png return 404
+    # and the client-side AuthProvider redirects them to /login.
+    if [[ -d "$CORE_REPO/ui/public" ]]; then
+      rm -rf "$CORE_REPO/ui/.next/standalone/public"
+      cp -r "$CORE_REPO/ui/public" "$CORE_REPO/ui/.next/standalone/public"
+    fi
   else
     echo "    (no .next/standalone — skip copy; use your own start command)"
   fi
