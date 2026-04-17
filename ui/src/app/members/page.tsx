@@ -296,7 +296,7 @@ export default function MembersPage() {
                     className="btn-ghost px-2 py-1.5 text-xs text-warning"
                   >
                     <i className="fa-solid fa-ban mr-1" aria-hidden />
-                    Revoke all access
+                    Revoke
                   </button>
                 )}
                 {m.access_revoked && (
