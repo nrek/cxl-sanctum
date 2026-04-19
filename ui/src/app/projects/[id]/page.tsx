@@ -357,7 +357,7 @@ export default function ProjectDetailPage() {
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="mb-2 text-2xl font-bold text-sanctum-mist">
+          <h1 className="mb-2 text-2xl font-bold text-sanctum-project">
             {project.name}
           </h1>
           <p className="text-sanctum-muted">

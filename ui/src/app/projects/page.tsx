@@ -108,7 +108,7 @@ export default function ProjectsPage() {
             <div className="mb-2 flex items-start justify-between gap-2">
               <Link
                 href={`/projects/${p.id}`}
-                className="text-lg font-semibold text-sanctum-accent hover:text-sanctum-mist"
+                className="text-lg font-semibold text-sanctum-project hover:text-white"
               >
                 {p.name}
               </Link>
