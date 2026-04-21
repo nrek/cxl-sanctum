@@ -10,6 +10,12 @@
   }
 }
 
+@media (min-width: 768px) {
+  html {
+    overflow-x: hidden;
+  }
+}
+
 @layer components {
   .sanctum-card {
     @apply rounded-lg border border-sanctum-line/20 bg-sanctum-surface shadow-lg;
