@@ -18,7 +18,7 @@ export default function MainShell({
       className={
         fullBleed
           ? "min-h-screen"
-          : `min-h-screen pb-20 transition-[margin] duration-200 md:pb-0 ${
+          : `min-h-screen overflow-x-hidden pb-20 transition-[margin] duration-200 md:pb-0 ${
               collapsed ? "md:ml-16" : "md:ml-60"
             }`
       }
