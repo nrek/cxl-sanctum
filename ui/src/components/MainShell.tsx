@@ -2,14 +2,15 @@
 
 import { usePathname } from "next/navigation";
 import { isPublicRoute } from "@/lib/routes";
+import { useSidebar } from "@/contexts/SidebarContext";
 
-/** Full-width on marketing/auth pages; offset for sidebar in the app shell. */
 export default function MainShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { collapsed } = useSidebar();
   const fullBleed = isPublicRoute(pathname);
 
   return (
@@ -17,7 +18,9 @@ export default function MainShell({
       className={
         fullBleed
           ? "min-h-screen"
-          : "min-h-screen pb-20 md:ml-60 md:pb-0"
+          : `min-h-screen pb-20 transition-[margin] duration-200 md:pb-0 ${
+              collapsed ? "md:ml-16" : "md:ml-60"
+            }`
       }
     >
       {children}

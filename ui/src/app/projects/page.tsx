@@ -6,6 +6,8 @@ import { apiFetch, getApiBase, Project, ServerGroup } from "@/lib/api";
 import ProvisionSnippets from "@/components/ProvisionSnippets";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
+import ViewToggle from "@/components/ViewToggle";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -18,6 +20,10 @@ export default function ProjectsPage() {
   );
   const [deleteUngroupedConfirm, setDeleteUngroupedConfirm] = useState("");
   const [deletingUngrouped, setDeletingUngrouped] = useState(false);
+  const [viewMode, setViewMode] = useLocalStorage<"tiles" | "rows">(
+    "sanctum_projects_view",
+    "tiles"
+  );
 
   const load = useCallback(() => {
     apiFetch<Project[]>("/projects/").then(setProjects);
@@ -92,27 +98,93 @@ export default function ProjectsPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-sanctum-mist">Projects</h1>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="btn-primary"
-        >
-          <i className="fa-solid fa-circle-plus" aria-hidden />
-          New Project
-        </button>
+        <div className="flex items-center gap-3">
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+          <button
+            type="button"
+            onClick={openCreate}
+            className="btn-primary"
+          >
+            <i className="fa-solid fa-circle-plus" aria-hidden />
+            New Project
+          </button>
+        </div>
       </div>
 
-      <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {projects.map((p) => (
-          <div key={p.id} className="sanctum-card relative p-5">
-            <div className="mb-2 flex items-start justify-between gap-2">
+      {viewMode === "tiles" ? (
+        <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {projects.map((p) => (
+            <div key={p.id} className="sanctum-card relative p-5">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <Link
+                  href={`/projects/${p.id}`}
+                  className="text-lg font-semibold text-sanctum-project hover:text-white"
+                >
+                  {p.name}
+                </Link>
+                <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
+                  <Tooltip label="Edit name and description">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(p)}
+                      className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
+                      aria-label="Edit project"
+                    >
+                      <i className="fa-solid fa-pen" aria-hidden />
+                    </button>
+                  </Tooltip>
+                  <Tooltip label="Delete project">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(p.id)}
+                      className="icon-btn-danger"
+                      aria-label="Delete project"
+                    >
+                      <i className="fa-solid fa-trash" aria-hidden />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+              <p className="mb-3 line-clamp-2 text-sm text-sanctum-muted">
+                {p.description || "No description"}
+              </p>
+              <div className="flex gap-4 text-sm text-sanctum-muted">
+                <span>{p.environment_count ?? 0} environments</span>
+                <span>{p.access_row_count ?? 0} access rows</span>
+              </div>
+            </div>
+          ))}
+          {projects.length === 0 && (
+            <p className="col-span-full py-8 text-center text-sanctum-muted">
+              No projects yet. Create one to group Development, Staging, and
+              Production servers.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="mb-10 space-y-1">
+          {projects.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center gap-4 rounded-lg border border-sanctum-line/20 bg-sanctum-surface px-4 py-3 shadow-sm"
+            >
               <Link
                 href={`/projects/${p.id}`}
-                className="text-lg font-semibold text-sanctum-project hover:text-white"
+                className="min-w-0 shrink-0 text-sm font-semibold text-sanctum-project hover:text-white"
+                style={{ width: "clamp(8rem, 20%, 14rem)" }}
               >
                 {p.name}
               </Link>
-              <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
+              <p className="min-w-0 flex-1 truncate text-sm text-sanctum-muted">
+                {p.description || "No description"}
+              </p>
+              <span className="shrink-0 text-xs text-sanctum-muted whitespace-nowrap">
+                {p.environment_count ?? 0} env
+              </span>
+              <span className="shrink-0 text-xs text-sanctum-muted whitespace-nowrap">
+                {p.access_row_count ?? 0} access
+              </span>
+              <div className="flex shrink-0 items-center gap-0.5">
                 <Tooltip label="Edit name and description">
                   <button
                     type="button"
@@ -120,7 +192,7 @@ export default function ProjectsPage() {
                     className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
                     aria-label="Edit project"
                   >
-                    <i className="fa-solid fa-pen" aria-hidden />
+                    <i className="fa-solid fa-pen text-xs" aria-hidden />
                   </button>
                 </Tooltip>
                 <Tooltip label="Delete project">
@@ -130,27 +202,20 @@ export default function ProjectsPage() {
                     className="icon-btn-danger"
                     aria-label="Delete project"
                   >
-                    <i className="fa-solid fa-trash" aria-hidden />
+                    <i className="fa-solid fa-trash text-xs" aria-hidden />
                   </button>
                 </Tooltip>
               </div>
             </div>
-            <p className="mb-3 line-clamp-2 text-sm text-sanctum-muted">
-              {p.description || "No description"}
+          ))}
+          {projects.length === 0 && (
+            <p className="py-8 text-center text-sanctum-muted">
+              No projects yet. Create one to group Development, Staging, and
+              Production servers.
             </p>
-            <div className="flex gap-4 text-sm text-sanctum-muted">
-              <span>{p.environment_count ?? 0} environments</span>
-              <span>{p.access_row_count ?? 0} access rows</span>
-            </div>
-          </div>
-        ))}
-        {projects.length === 0 && (
-          <p className="col-span-full py-8 text-center text-sanctum-muted">
-            No projects yet. Create one to group Development, Staging, and
-            Production servers.
-          </p>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {ungrouped.length > 0 && (
         <div>

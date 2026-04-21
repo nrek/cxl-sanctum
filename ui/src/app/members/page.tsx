@@ -10,6 +10,8 @@ import {
 } from "@/lib/api";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
+import ViewToggle from "@/components/ViewToggle";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -42,6 +44,10 @@ export default function MembersPage() {
   const [editKeyForm, setEditKeyForm] = useState({ label: "", public_key: "" });
   const [editKeySaving, setEditKeySaving] = useState(false);
   const [editKeyError, setEditKeyError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useLocalStorage<"tiles" | "rows">(
+    "sanctum_members_view",
+    "rows"
+  );
 
   const load = useCallback(() => {
     apiFetch<Member[]>("/members/").then(setMembers);
@@ -241,59 +247,84 @@ export default function MembersPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-sanctum-mist">Members</h1>
-        <button type="button" onClick={openCreate} className="btn-primary">
-          <i className="fa-solid fa-circle-plus" aria-hidden />
-          New Member
-        </button>
+        <div className="flex items-center gap-3">
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+          <button type="button" onClick={openCreate} className="btn-primary">
+            <i className="fa-solid fa-circle-plus" aria-hidden />
+            New Member
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {members.map((m) => (
-          <div
-            key={m.id}
-            className={`sanctum-card p-5 ${
-              m.access_revoked ? "border-danger/40 bg-danger/5" : ""
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-semibold text-sanctum-mist">
-                    {m.username}
-                  </h3>
-                  {m.access_revoked && (
-                    <span className="inline-flex items-center rounded border border-danger/50 bg-danger/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger">
-                      Access revoked
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-sanctum-muted">
-                  {m.email || "No email"}
-                </p>
-                {m.access_revoked ? (
-                  <p className="mt-2 text-xs text-sanctum-muted">
-                    Removed from all teams. Environments show under &quot;Globally
-                    revoked&quot; on each project until servers converge.
-                  </p>
-                ) : m.teams.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {m.teams.map((t) => (
-                      <span
-                        key={t.id}
-                        className="inline-block rounded-full border border-sanctum-line/25 bg-sanctum-ink/50 px-2 py-0.5 text-xs text-sanctum-muted"
-                      >
-                        {t.name}
+      {viewMode === "tiles" ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className={`sanctum-card p-5 ${
+                m.access_revoked ? "border-danger/40 bg-danger/5" : ""
+              }`}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold text-sanctum-mist">
+                      {m.username}
+                    </h3>
+                    {m.access_revoked && (
+                      <span className="inline-flex items-center rounded border border-danger/50 bg-danger/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger">
+                        Revoked
                       </span>
-                    ))}
+                    )}
                   </div>
-                ) : null}
+                  <p className="text-sm text-sanctum-muted">
+                    {m.email || "No email"}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
+                  <Tooltip label="Edit member">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(m)}
+                      className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
+                      aria-label="Edit member"
+                    >
+                      <i className="fa-solid fa-pen text-xs" aria-hidden />
+                    </button>
+                  </Tooltip>
+                  <Tooltip label="Delete member">
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(m)}
+                      className="icon-btn-danger"
+                      aria-label="Delete member"
+                    >
+                      <i className="fa-solid fa-trash text-xs" aria-hidden />
+                    </button>
+                  </Tooltip>
+                </div>
               </div>
-              <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+              {m.teams.length > 0 && !m.access_revoked && (
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {m.teams.map((t) => (
+                    <span
+                      key={t.id}
+                      className="inline-block rounded-full border border-sanctum-line/25 bg-sanctum-ink/50 px-2 py-0.5 text-xs text-sanctum-muted"
+                    >
+                      {t.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mb-3 text-xs text-sanctum-muted">
+                {m.ssh_keys.length} {m.ssh_keys.length === 1 ? "key" : "keys"}
+              </div>
+              <div className="flex flex-wrap gap-1">
                 {!m.access_revoked && (
                   <button
                     type="button"
                     onClick={() => handleRevokeAccess(m)}
-                    className="btn-ghost px-2 py-1.5 text-xs text-warning"
+                    className="btn-ghost px-2 py-1 text-xs text-warning"
                   >
                     <i className="fa-solid fa-ban mr-1" aria-hidden />
                     Revoke
@@ -303,9 +334,9 @@ export default function MembersPage() {
                   <button
                     type="button"
                     onClick={() => handleRestoreAccess(m)}
-                    className="btn-secondary px-2 py-1.5 text-xs"
+                    className="btn-secondary px-2 py-1 text-xs"
                   >
-                    Restore access
+                    Restore
                   </button>
                 )}
                 <button
@@ -317,81 +348,167 @@ export default function MembersPage() {
                       ? "Restore access before adding keys"
                       : undefined
                   }
-                  className="btn-ghost gap-1.5 px-2 py-1.5 text-sm text-success hover:text-sanctum-mist disabled:cursor-not-allowed disabled:opacity-40"
+                  className="btn-ghost gap-1 px-2 py-1 text-xs text-success hover:text-sanctum-mist disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <i className="fa-solid fa-circle-plus" aria-hidden />
                   Key
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openEdit(m)}
-                  className="btn-ghost px-2 py-1.5 text-sm text-sanctum-accent"
-                >
-                  Edit
-                </button>
-                <Tooltip label="Delete member record from Sanctum">
-                  <button
-                    type="button"
-                    onClick={() => openDeleteModal(m)}
-                    className="icon-btn-danger"
-                    aria-label="Delete member"
-                  >
-                    <i className="fa-solid fa-trash" aria-hidden />
-                  </button>
-                </Tooltip>
               </div>
             </div>
-            {m.ssh_keys.length > 0 && (
-              <div className="mt-3 space-y-1">
-                {m.ssh_keys.map((k) => (
-                  <div
-                    key={k.id}
-                    className="flex items-center justify-between rounded border border-sanctum-line/15 bg-sanctum-ink/40 px-3 py-2 text-sm"
+          ))}
+          {members.length === 0 && (
+            <div className="col-span-full py-12 text-center text-sanctum-muted">
+              No members yet
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className={`sanctum-card p-5 ${
+                m.access_revoked ? "border-danger/40 bg-danger/5" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold text-sanctum-mist">
+                      {m.username}
+                    </h3>
+                    {m.access_revoked && (
+                      <span className="inline-flex items-center rounded border border-danger/50 bg-danger/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger">
+                        Access revoked
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-sanctum-muted">
+                    {m.email || "No email"}
+                  </p>
+                  {m.access_revoked ? (
+                    <p className="mt-2 text-xs text-sanctum-muted">
+                      Removed from all teams. Environments show under &quot;Globally
+                      revoked&quot; on each project until servers converge.
+                    </p>
+                  ) : m.teams.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {m.teams.map((t) => (
+                        <span
+                          key={t.id}
+                          className="inline-block rounded-full border border-sanctum-line/25 bg-sanctum-ink/50 px-2 py-0.5 text-xs text-sanctum-muted"
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                  {!m.access_revoked && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevokeAccess(m)}
+                      className="btn-ghost px-2 py-1.5 text-xs text-warning"
+                    >
+                      <i className="fa-solid fa-ban mr-1" aria-hidden />
+                      Revoke
+                    </button>
+                  )}
+                  {m.access_revoked && (
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreAccess(m)}
+                      className="btn-secondary px-2 py-1.5 text-xs"
+                    >
+                      Restore access
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openAddKey(m)}
+                    disabled={m.access_revoked}
+                    title={
+                      m.access_revoked
+                        ? "Restore access before adding keys"
+                        : undefined
+                    }
+                    className="btn-ghost gap-1.5 px-2 py-1.5 text-sm text-success hover:text-sanctum-mist disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate">
-                        <span className="font-medium text-sanctum-mist">
-                          {k.label || "Unnamed key"}
-                        </span>
-                        <span className="ml-2 font-mono text-xs text-sanctum-muted">
-                          {k.public_key}
-                        </span>
+                    <i className="fa-solid fa-circle-plus" aria-hidden />
+                    Key
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(m)}
+                    className="btn-ghost px-2 py-1.5 text-sm text-sanctum-accent"
+                  >
+                    Edit
+                  </button>
+                  <Tooltip label="Delete member record from Sanctum">
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(m)}
+                      className="icon-btn-danger"
+                      aria-label="Delete member"
+                    >
+                      <i className="fa-solid fa-trash" aria-hidden />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+              {m.ssh_keys.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {m.ssh_keys.map((k) => (
+                    <div
+                      key={k.id}
+                      className="flex items-center justify-between rounded border border-sanctum-line/15 bg-sanctum-ink/40 px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate">
+                          <span className="font-medium text-sanctum-mist">
+                            {k.label || "Unnamed key"}
+                          </span>
+                          <span className="ml-2 font-mono text-xs text-sanctum-muted">
+                            {k.public_key}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="ml-2 flex shrink-0 items-center gap-0.5">
+                        <Tooltip label="Edit label or public key">
+                          <button
+                            type="button"
+                            onClick={() => openEditKey(m, k)}
+                            className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
+                            aria-label="Edit SSH key"
+                          >
+                            <i className="fa-solid fa-pen text-xs" aria-hidden />
+                          </button>
+                        </Tooltip>
+                        <Tooltip label="Remove SSH key">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteKey(m.id, k.id)}
+                            className="icon-btn-danger flex-shrink-0"
+                            aria-label="Remove SSH key"
+                          >
+                            <i className="fa-solid fa-trash text-xs" aria-hidden />
+                          </button>
+                        </Tooltip>
                       </div>
                     </div>
-                    <div className="ml-2 flex shrink-0 items-center gap-0.5">
-                      <Tooltip label="Edit label or public key">
-                        <button
-                          type="button"
-                          onClick={() => openEditKey(m, k)}
-                          className="rounded p-1.5 text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist"
-                          aria-label="Edit SSH key"
-                        >
-                          <i className="fa-solid fa-pen text-xs" aria-hidden />
-                        </button>
-                      </Tooltip>
-                      <Tooltip label="Remove SSH key">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteKey(m.id, k.id)}
-                          className="icon-btn-danger flex-shrink-0"
-                          aria-label="Remove SSH key"
-                        >
-                          <i className="fa-solid fa-trash text-xs" aria-hidden />
-                        </button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-        {members.length === 0 && (
-          <div className="py-12 text-center text-sanctum-muted">
-            No members yet
-          </div>
-        )}
-      </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {members.length === 0 && (
+            <div className="py-12 text-center text-sanctum-muted">
+              No members yet
+            </div>
+          )}
+        </div>
+      )}
 
       <Modal
         open={modalOpen}
