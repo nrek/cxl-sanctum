@@ -268,9 +268,13 @@ export default function MembersPage() {
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold text-sanctum-mist">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(m)}
+                      className="text-lg font-semibold text-sanctum-mist hover:text-sanctum-accent text-left"
+                    >
                       {m.username}
-                    </h3>
+                    </button>
                     {m.access_revoked && (
                       <span className="inline-flex items-center rounded border border-danger/50 bg-danger/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger">
                         Revoked
@@ -374,9 +378,13 @@ export default function MembersPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold text-sanctum-mist">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(m)}
+                      className="text-lg font-semibold text-sanctum-mist hover:text-sanctum-accent text-left"
+                    >
                       {m.username}
-                    </h3>
+                    </button>
                     {m.access_revoked && (
                       <span className="inline-flex items-center rounded border border-danger/50 bg-danger/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-danger">
                         Access revoked

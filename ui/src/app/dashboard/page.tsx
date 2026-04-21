@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   apiFetch,
   BillingStatus,
@@ -13,17 +14,21 @@ import {
   WorkspaceSummary,
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-const ACTIVE_CONNECTIONS_PAGE_SIZE = 8;
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+
+const PAGE_SIZE_OPTIONS = [8, 15, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 8;
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "";
 
 const STAT_CARDS = [
-  { key: "projects" as const, label: "Projects", dot: "bg-sanctum-accent" },
-  { key: "members" as const, label: "Members", dot: "bg-success" },
+  { key: "projects" as const, label: "Projects", dot: "bg-sanctum-accent", href: "/projects" },
+  { key: "members" as const, label: "Members", dot: "bg-success", href: "/members" },
   {
     key: "servers_online" as const,
     label: "Servers online",
     dot: "bg-warning",
+    href: null,
   },
 ];
 
@@ -55,6 +60,10 @@ export default function DashboardPage() {
   const [billingAction, setBillingAction] = useState(false);
   const [servers, setServers] = useState<Server[] | null>(null);
   const [connectionsPage, setConnectionsPage] = useState(0);
+  const [pageSize, setPageSize] = useLocalStorage<number>(
+    "sanctum_connections_page_size",
+    DEFAULT_PAGE_SIZE
+  );
 
   const workspace: WorkspaceSummary | null = ctxWorkspace;
 
@@ -80,7 +89,7 @@ export default function DashboardPage() {
 
   const connectionsPageCount = Math.max(
     1,
-    Math.ceil(activeConnections.length / ACTIVE_CONNECTIONS_PAGE_SIZE)
+    Math.ceil(activeConnections.length / pageSize)
   );
 
   useEffect(() => {
@@ -90,9 +99,9 @@ export default function DashboardPage() {
   }, [connectionsPage, connectionsPageCount]);
 
   const pagedConnections = useMemo(() => {
-    const start = connectionsPage * ACTIVE_CONNECTIONS_PAGE_SIZE;
-    return activeConnections.slice(start, start + ACTIVE_CONNECTIONS_PAGE_SIZE);
-  }, [activeConnections, connectionsPage]);
+    const start = connectionsPage * pageSize;
+    return activeConnections.slice(start, start + pageSize);
+  }, [activeConnections, connectionsPage, pageSize]);
 
   useEffect(() => {
     if (!wsLoading) {
@@ -225,7 +234,7 @@ export default function DashboardPage() {
 
       <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {STAT_CARDS.map((card) => (
-          <div key={card.key} className="sanctum-card p-5">
+          <div key={card.key} className="sanctum-card relative p-5">
             <div className="mb-1 flex items-center gap-2">
               <span className={`inline-block h-2.5 w-2.5 rounded-full ${card.dot}`} />
               <span className="text-sm text-sanctum-muted">{card.label}</span>
@@ -233,6 +242,15 @@ export default function DashboardPage() {
             <p className="text-3xl font-bold tabular-nums text-sanctum-mist">
               {stats ? stats[card.key] : "\u2014"}
             </p>
+            {card.href && (
+              <Link
+                href={card.href}
+                className="absolute right-4 top-4 text-sanctum-muted transition-colors hover:text-sanctum-mist"
+                aria-label={`Open ${card.label}`}
+              >
+                <i className="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden />
+              </Link>
+            )}
           </div>
         ))}
       </div>
@@ -243,9 +261,26 @@ export default function DashboardPage() {
             Active Connections
           </h2>
           {activeConnections.length > 0 && (
-            <span className="text-xs text-sanctum-muted tabular-nums">
-              {activeConnections.length} total
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-sanctum-muted tabular-nums">
+                {activeConnections.length} total
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setConnectionsPage(0);
+                }}
+                className="sanctum-select text-xs py-1 px-1.5"
+                aria-label="Rows per page"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
         <p className="mb-4 text-xs text-sanctum-muted">

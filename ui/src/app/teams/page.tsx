@@ -88,7 +88,7 @@ export default function TeamsPage() {
                 <td className="px-6 py-4 font-medium">
                   <Link
                     href={`/teams/${team.id}`}
-                    className="text-sanctum-accent hover:text-sanctum-mist"
+                    className="text-sanctum-mist hover:text-sanctum-accent"
                   >
                     {team.name}
                   </Link>
@@ -101,19 +101,25 @@ export default function TeamsPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Link
-                      href={`/teams/${team.id}`}
-                      className="btn-ghost px-2 py-1.5 text-xs text-sanctum-accent"
-                    >
-                      Members
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(team)}
-                      className="btn-ghost px-2 py-1.5 text-xs"
-                    >
-                      Edit
-                    </button>
+                    <Tooltip label="View members">
+                      <Link
+                        href={`/teams/${team.id}`}
+                        className="icon-btn"
+                        aria-label="View members"
+                      >
+                        <i className="fa-solid fa-user" aria-hidden />
+                      </Link>
+                    </Tooltip>
+                    <Tooltip label="Edit team">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(team)}
+                        className="icon-btn"
+                        aria-label="Edit team"
+                      >
+                        <i className="fa-solid fa-pencil" aria-hidden />
+                      </button>
+                    </Tooltip>
                     <Tooltip label="Delete team">
                       <button
                         type="button"

@@ -183,7 +183,7 @@ export default function AdminsPage() {
         onSubmit={(e) => void handleCreate(e)}
         className="sanctum-card mb-8 space-y-4 p-6"
       >
-        <h2 className="text-lg font-semibold text-sanctum-mist">Add admin</h2>
+        <h2 className="text-lg font-semibold text-sanctum-mist">Add Admin</h2>
         {formError ? (
           <div
             className="rounded-md border border-danger/40 bg-danger-surface px-4 py-2 text-sm text-danger"
@@ -234,9 +234,18 @@ export default function AdminsPage() {
             />
           </div>
         </div>
-        <button type="submit" disabled={saving} className="btn-primary">
-          {saving ? "Creating…" : "Create admin"}
-        </button>
+        <div className="flex justify-end">
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? (
+              "Creating…"
+            ) : (
+              <>
+                <i className="fa-solid fa-circle-plus" aria-hidden />
+                Add Admin
+              </>
+            )}
+          </button>
+        </div>
       </form>
 
       {loadError ? (

@@ -118,7 +118,7 @@ export default function ProjectsPage() {
               <div className="mb-2 flex items-start justify-between gap-2">
                 <Link
                   href={`/projects/${p.id}`}
-                  className="text-lg font-semibold text-sanctum-project hover:text-white"
+                  className="text-lg font-semibold text-sanctum-mist hover:text-sanctum-accent"
                 >
                   {p.name}
                 </Link>
@@ -170,7 +170,7 @@ export default function ProjectsPage() {
             >
               <Link
                 href={`/projects/${p.id}`}
-                className="min-w-0 shrink-0 text-sm font-semibold text-sanctum-project hover:text-white"
+                className="min-w-0 shrink-0 text-sm font-semibold text-sanctum-mist hover:text-sanctum-accent"
                 style={{ width: "clamp(8rem, 20%, 14rem)" }}
               >
                 {p.name}
