@@ -176,16 +176,21 @@ export default function TeamDetailPage() {
         </form>
 
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-sanctum-line/15">
+        <table className="w-full divide-y divide-sanctum-line/15 table-fixed">
+          <colgroup>
+            <col className="w-[35%]" />
+            <col />
+            <col className="w-16" />
+          </colgroup>
           <thead className="bg-sanctum-ink/60">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
                 Username
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
                 Email
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-sanctum-muted">
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-sanctum-muted">
                 Actions
               </th>
             </tr>
@@ -193,15 +198,15 @@ export default function TeamDetailPage() {
           <tbody className="divide-y divide-sanctum-line/15">
             {team.members.map((m) => (
               <tr key={m.id} className="hover:bg-white/[0.03]">
-                <td className="px-6 py-4 font-medium">
+                <td className="px-4 py-4 font-medium">
                   <Link href="/members" className="link-accent">
                     {m.username}
                   </Link>
                 </td>
-                <td className="px-6 py-4 text-sm text-sanctum-muted">
+                <td className="truncate px-4 py-4 text-sm text-sanctum-muted">
                   {m.email || "—"}
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-4 py-4 text-right">
                   <Tooltip label="Remove user from this team">
                     <button
                       type="button"
