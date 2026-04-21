@@ -175,38 +175,37 @@ export default function TeamDetailPage() {
           </button>
         </form>
 
-        <div className="overflow-x-auto">
         <table className="w-full divide-y divide-sanctum-line/15 table-fixed">
           <colgroup>
-            <col className="w-[35%]" />
-            <col />
-            <col className="w-16" />
+            <col style={{ width: "40%" }} />
+            <col style={{ width: "auto" }} />
+            <col style={{ width: "3.5rem" }} />
           </colgroup>
           <thead className="bg-sanctum-ink/60">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
+              <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted sm:px-4">
                 Username
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
+              <th className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted sm:px-4">
                 Email
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-sanctum-muted">
-                Actions
+              <th className="px-3 py-3 text-right text-xs font-medium uppercase tracking-wide text-sanctum-muted sm:px-4">
+                <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-sanctum-line/15">
             {team.members.map((m) => (
               <tr key={m.id} className="hover:bg-white/[0.03]">
-                <td className="px-4 py-4 font-medium">
+                <td className="px-3 py-3 font-medium sm:px-4">
                   <Link href="/members" className="link-accent">
                     {m.username}
                   </Link>
                 </td>
-                <td className="truncate px-4 py-4 text-sm text-sanctum-muted">
+                <td className="max-w-0 truncate px-3 py-3 text-sm text-sanctum-muted sm:px-4">
                   {m.email || "—"}
                 </td>
-                <td className="px-4 py-4 text-right">
+                <td className="px-3 py-3 text-right sm:px-4">
                   <Tooltip label="Remove user from this team">
                     <button
                       type="button"
@@ -224,7 +223,7 @@ export default function TeamDetailPage() {
               <tr>
                 <td
                   colSpan={3}
-                  className="px-6 py-10 text-center text-sm text-sanctum-muted"
+                  className="px-4 py-10 text-center text-sm text-sanctum-muted"
                 >
                   No users in this team yet. Add one above, or assign teams when
                   editing a member on the Members page.
@@ -233,7 +232,6 @@ export default function TeamDetailPage() {
             )}
           </tbody>
         </table>
-        </div>
       </div>
 
       <Modal
