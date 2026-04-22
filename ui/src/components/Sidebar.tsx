@@ -69,7 +69,7 @@ export default function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-4">
+      <nav className={`flex-1 space-y-0.5 px-2 py-4 ${collapsed ? "overflow-visible" : "overflow-y-auto"}`}>
         {nav.map((item) => {
           const active =
             item.href === "/dashboard"
