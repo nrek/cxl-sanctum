@@ -637,6 +637,56 @@ class APITests(TestCase):
         res = self.client.delete(f"/api/projects/{pid}/")
         self.assertEqual(res.status_code, 204)
 
+    def test_projects_list_environment_worst_status(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        proj = Project.objects.create(name="HealthProj", workspace=self.ws)
+        sg_live = ServerGroup.objects.create(project=proj, name="LiveEnv")
+        sg_stale = ServerGroup.objects.create(project=proj, name="StaleEnv")
+        sg_dead = ServerGroup.objects.create(project=proj, name="DeadEnv")
+        Server.objects.create(
+            name="ok",
+            hostname="ok",
+            server_group=sg_live,
+            last_seen=now,
+        )
+        Server.objects.create(
+            name="st",
+            hostname="st",
+            server_group=sg_stale,
+            last_seen=now - timedelta(hours=1),
+        )
+        Server.objects.create(
+            name="ded",
+            hostname="ded",
+            server_group=sg_dead,
+            last_seen=now - timedelta(days=2),
+        )
+
+        res = self.client.get("/api/projects/")
+        self.assertEqual(res.status_code, 200)
+        row = next(p for p in res.data if p["name"] == "HealthProj")
+        self.assertEqual(row["environment_worst_status"], "dead")
+
+        Server.objects.filter(server_group=sg_dead).update(last_seen=now)
+        res = self.client.get("/api/projects/")
+        row = next(p for p in res.data if p["name"] == "HealthProj")
+        self.assertEqual(row["environment_worst_status"], "stale")
+
+        Server.objects.filter(server_group=sg_stale).update(last_seen=now)
+        res = self.client.get("/api/projects/")
+        row = next(p for p in res.data if p["name"] == "HealthProj")
+        self.assertEqual(row["environment_worst_status"], "live")
+
+        proj_empty = Project.objects.create(name="NoServers", workspace=self.ws)
+        ServerGroup.objects.create(project=proj_empty, name="EmptyEnv")
+        res = self.client.get("/api/projects/")
+        row = next(p for p in res.data if p["name"] == "NoServers")
+        self.assertEqual(row["environment_worst_status"], "live")
+
     def test_project_access_and_assign_team(self):
         proj = Project.objects.create(name="P1", workspace=self.ws)
         sg1 = ServerGroup.objects.create(project=proj, name="Development")

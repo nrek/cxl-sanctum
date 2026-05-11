@@ -25,6 +25,7 @@ class MemberMinimalSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     environment_count = serializers.IntegerField(read_only=True, required=False)
     access_row_count = serializers.SerializerMethodField()
+    environment_worst_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -34,10 +35,17 @@ class ProjectSerializer(serializers.ModelSerializer):
             "description",
             "environment_count",
             "access_row_count",
+            "environment_worst_status",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def _now(self):
+        return self.context.get("_now") or timezone.now()
+
+    def get_environment_worst_status(self, obj):
+        return project_environment_worst_status(obj, now=self._now())
 
     def get_access_row_count(self, obj):
         from django.db.models import Q
@@ -222,6 +230,46 @@ def server_status_for(last_seen, *, now=None):
     if age <= SERVER_STALE_WITHIN_SEC:
         return "stale"
     return "dead"
+
+
+def environment_heartbeat_worst(servers, *, now=None):
+    """Worst heartbeat bucket for one environment (iterable of Server).
+
+    Returns:
+        "dead" | "stale" | "live" — or None if there are no server rows yet.
+    """
+    now = now or timezone.now()
+    servers = list(servers)
+    if not servers:
+        return None
+    has_stale = False
+    for srv in servers:
+        st = server_status_for(srv.last_seen, now=now)
+        if st == "dead":
+            return "dead"
+        if st == "stale":
+            has_stale = True
+    return "stale" if has_stale else "live"
+
+
+def project_environment_worst_status(project, *, now=None):
+    """Aggregate worst status across environments (server groups) in a project.
+
+    Environments with no servers are ignored. All-empty project -> "live".
+    Priority: any dead > any stale > all live.
+    """
+    now = now or timezone.now()
+    worst = "live"
+    rank = {"live": 0, "stale": 1, "dead": 2}
+    for sg in project.server_groups.all():
+        w = environment_heartbeat_worst(sg.servers.all(), now=now)
+        if w is None:
+            continue
+        if rank[w] > rank[worst]:
+            worst = w
+        if worst == "dead":
+            break
+    return worst
 
 
 class ServerSerializer(serializers.ModelSerializer):

@@ -7,7 +7,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.conf import settings as django_settings
@@ -226,6 +226,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["_now"] = timezone.now()
+        return ctx
+
     def get_queryset(self):
         ws = get_request_workspace(self.request)
         if ws is None:
@@ -234,6 +239,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
             Project.objects.filter(workspace=ws)
             .annotate(
                 environment_count=Count("server_groups", distinct=True),
+            )
+            .prefetch_related(
+                Prefetch(
+                    "server_groups",
+                    ServerGroup.objects.prefetch_related("servers"),
+                ),
             )
             .order_by("name")
         )

@@ -2,12 +2,61 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { apiFetch, getApiBase, Project, ServerGroup } from "@/lib/api";
+import {
+  apiFetch,
+  getApiBase,
+  Project,
+  ProjectEnvironmentWorstStatus,
+  ServerGroup,
+} from "@/lib/api";
 import ProvisionSnippets from "@/components/ProvisionSnippets";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 import ViewToggle from "@/components/ViewToggle";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+
+function projectWorstStatusPresentation(
+  status: ProjectEnvironmentWorstStatus | undefined
+): { dotClass: string; label: string } {
+  switch (status ?? "live") {
+    case "dead":
+      return {
+        dotClass: "bg-danger",
+        label: "At least one environment has dead servers",
+      };
+    case "stale":
+      return {
+        dotClass: "bg-warning",
+        label: "At least one environment is stale; none are dead",
+      };
+    default:
+      return {
+        dotClass: "bg-success",
+        label: "All environments with servers are online",
+      };
+  }
+}
+
+function ProjectTitleWithStatusDot({
+  name,
+  status,
+}: {
+  name: string;
+  status?: ProjectEnvironmentWorstStatus;
+}) {
+  const { dotClass, label } = projectWorstStatusPresentation(status);
+  return (
+    <>
+      <span
+        className={`inline-block h-2 w-2 shrink-0 rounded-full ${dotClass}`}
+        title={label}
+        role="img"
+        aria-label={label}
+      />
+      <span className="min-w-0 truncate">{name}</span>
+    </>
+  );
+}
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -118,9 +167,12 @@ export default function ProjectsPage() {
               <div className="mb-2 flex items-start justify-between gap-2">
                 <Link
                   href={`/projects/${p.id}`}
-                  className="text-lg font-semibold text-sanctum-mist hover:text-sanctum-accent"
+                  className="flex min-w-0 items-center gap-2 text-lg font-semibold text-sanctum-mist hover:text-sanctum-accent"
                 >
-                  {p.name}
+                  <ProjectTitleWithStatusDot
+                    name={p.name}
+                    status={p.environment_worst_status}
+                  />
                 </Link>
                 <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
                   <Tooltip label="Edit name and description">
@@ -170,10 +222,13 @@ export default function ProjectsPage() {
             >
               <Link
                 href={`/projects/${p.id}`}
-                className="min-w-0 shrink-0 text-sm font-semibold text-sanctum-mist hover:text-sanctum-accent"
+                className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-sanctum-mist hover:text-sanctum-accent"
                 style={{ width: "clamp(8rem, 20%, 14rem)" }}
               >
-                {p.name}
+                <ProjectTitleWithStatusDot
+                  name={p.name}
+                  status={p.environment_worst_status}
+                />
               </Link>
               <p className="min-w-0 flex-1 truncate text-sm text-sanctum-muted">
                 {p.description || "No description"}

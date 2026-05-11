@@ -345,12 +345,16 @@ export interface Member {
   updated_at?: string;
 }
 
+/** Worst heartbeat bucket across environments (GET /projects/). */
+export type ProjectEnvironmentWorstStatus = "live" | "stale" | "dead";
+
 export interface Project {
   id: number;
   name: string;
   description: string;
   environment_count?: number;
   access_row_count?: number;
+  environment_worst_status?: ProjectEnvironmentWorstStatus;
   created_at: string;
   updated_at: string;
 }
