@@ -15,6 +15,8 @@ import {
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { HeartbeatRhythm } from "@/components/HeartbeatRhythm";
+import type { HeartbeatRhythmStatus } from "@/lib/api";
 
 const PAGE_SIZE_OPTIONS = [8, 15, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 8;
@@ -50,6 +52,35 @@ function heartbeatDotClass(h: HealthStatus["heartbeat_freshness"]): string {
   if (online === total_servers) return "bg-success";
   if (online > 0) return "bg-warning";
   return "bg-red-500";
+}
+
+function formatHeartbeatAgo(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h < 48) return rem > 0 ? `${h}h ${rem}m ago` : `${h}h ago`;
+  const d = Math.floor(h / 24);
+  const hr = h % 24;
+  return `${d}d ${hr}h ago`;
+}
+
+function rhythmStatusOrUnknown(
+  s: string | undefined
+): HeartbeatRhythmStatus {
+  if (
+    s === "stable" ||
+    s === "warning" ||
+    s === "degrading" ||
+    s === "offline" ||
+    s === "unknown"
+  ) {
+    return s;
+  }
+  return "unknown";
 }
 
 export default function DashboardPage() {
@@ -284,8 +315,9 @@ export default function DashboardPage() {
           )}
         </div>
         <p className="mb-4 text-xs text-sanctum-muted">
-          A server counts as online when its last heartbeat is within about 10
-          minutes. If a host never appears or stays stale, check{" "}
+          Rhythm shows the last hour in 5-minute buckets (filled = heartbeat seen
+          in that window). A server counts as online when its last heartbeat is
+          within about 10 minutes. If a host never appears or stays stale, check{" "}
           <code className="rounded bg-sanctum-line/15 px-1 text-sanctum-mist">
             /etc/cron.d/sanctum
           </code>
@@ -304,6 +336,7 @@ export default function DashboardPage() {
                     <th className="py-2 pr-4 font-medium">Project</th>
                     <th className="py-2 pr-4 font-medium">Environment</th>
                     <th className="py-2 pr-4 font-medium">Hostname</th>
+                    <th className="py-2 pr-4 font-medium">Rhythm</th>
                     <th className="py-2 pr-4 font-medium">Heartbeat</th>
                   </tr>
                 </thead>
@@ -319,10 +352,14 @@ export default function DashboardPage() {
                       <td className="py-2 pr-4 font-mono text-xs">
                         {s.hostname || s.name}
                       </td>
+                      <td className="py-2 pr-4 align-middle">
+                        <HeartbeatRhythm
+                          windows={s.heartbeat_windows ?? []}
+                          status={rhythmStatusOrUnknown(s.heartbeat_rhythm_status)}
+                        />
+                      </td>
                       <td className="py-2 pr-4 text-xs text-sanctum-muted tabular-nums">
-                        {s.last_seen
-                          ? new Date(s.last_seen).toLocaleString()
-                          : ""}
+                        {formatHeartbeatAgo(s.seconds_since_seen)}
                       </td>
                     </tr>
                   ))}

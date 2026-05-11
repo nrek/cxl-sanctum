@@ -203,6 +203,24 @@ class Server(models.Model):
         return self.name or self.hostname
 
 
+class ServerHeartbeatLog(models.Model):
+    """One row per successful POST /api/heartbeat/ — powers dashboard rhythm windows."""
+
+    server = models.ForeignKey(
+        Server, on_delete=models.CASCADE, related_name="heartbeat_logs"
+    )
+    recorded_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        indexes = [
+            models.Index(fields=["server", "recorded_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.server_id} @ {self.recorded_at}"
+
+
 class Assignment(models.Model):
     """Grant access for either a Team (group of users) or a Member (single user)."""
 

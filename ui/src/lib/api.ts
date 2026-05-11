@@ -373,6 +373,13 @@ export interface ServerGroup {
 
 export type ServerStatus = "online" | "stale" | "dead";
 
+export type HeartbeatRhythmStatus =
+  | "stable"
+  | "warning"
+  | "degrading"
+  | "offline"
+  | "unknown";
+
 export interface ServerReplacementHint {
   id: number;
   hostname: string;
@@ -391,6 +398,14 @@ export interface Server {
   status: ServerStatus;
   seconds_since_seen: number | null;
   likely_replaced_by: ServerReplacementHint | null;
+  /** Twelve booleans: 5-minute buckets over the last 60 minutes, oldest first. */
+  heartbeat_windows?: boolean[];
+  heartbeat_expected?: number;
+  heartbeat_received?: number;
+  heartbeat_missed?: number;
+  heartbeat_rhythm_status?: HeartbeatRhythmStatus;
+  heartbeat_window_minutes?: number;
+  heartbeat_interval_minutes?: number;
 }
 
 export interface PruneServersRequest {

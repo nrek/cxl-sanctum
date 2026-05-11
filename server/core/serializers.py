@@ -10,6 +10,7 @@ from .models import (
     Project,
     ServerGroup,
     Server,
+    ServerHeartbeatLog,
     Assignment,
     WorkspaceAdmin,
 )
@@ -213,6 +214,93 @@ class ServerGroupSerializer(serializers.ModelSerializer):
 SERVER_ONLINE_WITHIN_SEC = 10 * 60
 SERVER_STALE_WITHIN_SEC = 24 * 60 * 60
 
+HEARTBEAT_RHYTHM_BUCKETS = 12
+HEARTBEAT_RHYTHM_BUCKET_MINUTES = 5
+HEARTBEAT_RHYTHM_WINDOW_MINUTES = HEARTBEAT_RHYTHM_BUCKETS * HEARTBEAT_RHYTHM_BUCKET_MINUTES
+
+
+def compute_heartbeat_rhythm_status(received, expected, last_seen, now):
+    """Dashboard rhythm label: stable / warning / degrading / offline / unknown.
+
+    Aligns last-seen offline threshold with SERVER_ONLINE_WITHIN_SEC (10 minutes).
+    """
+    if expected <= 0:
+        return "unknown"
+    if last_seen is None:
+        return "offline"
+    age_min = (now - last_seen).total_seconds() / 60.0
+    if age_min >= SERVER_ONLINE_WITHIN_SEC / 60.0:
+        return "offline"
+    success_rate = received / expected
+    if success_rate >= 0.95:
+        return "stable"
+    if success_rate >= 0.75:
+        return "warning"
+    if success_rate >= 0.50:
+        return "degrading"
+    return "offline"
+
+
+def build_heartbeat_rhythm_by_server_id(server_ids, now, last_seen_by_id):
+    """12 buckets of 5 minutes each, oldest → newest (left → right in UI)."""
+    if not server_ids:
+        return {}
+    id_set = frozenset(server_ids)
+    window_start = []
+    window_end = []
+    for k in range(HEARTBEAT_RHYTHM_BUCKETS):
+        ws = now - timedelta(minutes=HEARTBEAT_RHYTHM_WINDOW_MINUTES - HEARTBEAT_RHYTHM_BUCKET_MINUTES * k)
+        we = (
+            now - timedelta(minutes=HEARTBEAT_RHYTHM_WINDOW_MINUTES - HEARTBEAT_RHYTHM_BUCKET_MINUTES * (k + 1))
+            if k < HEARTBEAT_RHYTHM_BUCKETS - 1
+            else now
+        )
+        window_start.append(ws)
+        window_end.append(we)
+
+    windows_by = {sid: [False] * HEARTBEAT_RHYTHM_BUCKETS for sid in server_ids}
+
+    logs = ServerHeartbeatLog.objects.filter(
+        server_id__in=server_ids,
+        recorded_at__gte=now - timedelta(minutes=HEARTBEAT_RHYTHM_WINDOW_MINUTES),
+    ).values_list("server_id", "recorded_at")
+
+    for sid, t in logs:
+        if sid not in id_set:
+            continue
+        for k in range(HEARTBEAT_RHYTHM_BUCKETS):
+            if window_start[k] <= t < window_end[k]:
+                windows_by[sid][k] = True
+                break
+
+    for sid in server_ids:
+        ls = last_seen_by_id.get(sid)
+        if ls is None:
+            continue
+        for k in range(HEARTBEAT_RHYTHM_BUCKETS):
+            if window_start[k] <= ls < window_end[k]:
+                windows_by[sid][k] = True
+                break
+
+    out = {}
+    for sid in server_ids:
+        w = windows_by[sid]
+        received = sum(1 for x in w if x)
+        expected = HEARTBEAT_RHYTHM_BUCKETS
+        missed = expected - received
+        ls = last_seen_by_id.get(sid)
+        status = compute_heartbeat_rhythm_status(received, expected, ls, now)
+        out[sid] = {
+            "heartbeat_windows": w,
+            "heartbeat_expected": expected,
+            "heartbeat_received": received,
+            "heartbeat_missed": missed,
+            "heartbeat_rhythm_status": status,
+            "heartbeat_window_minutes": HEARTBEAT_RHYTHM_WINDOW_MINUTES,
+            "heartbeat_interval_minutes": HEARTBEAT_RHYTHM_BUCKET_MINUTES,
+        }
+    return out
+
 
 def server_status_for(last_seen, *, now=None):
     """Bucket a server by freshness: online / stale / dead.
@@ -278,6 +366,13 @@ class ServerSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     seconds_since_seen = serializers.SerializerMethodField()
     likely_replaced_by = serializers.SerializerMethodField()
+    heartbeat_windows = serializers.SerializerMethodField()
+    heartbeat_expected = serializers.SerializerMethodField()
+    heartbeat_received = serializers.SerializerMethodField()
+    heartbeat_missed = serializers.SerializerMethodField()
+    heartbeat_rhythm_status = serializers.SerializerMethodField()
+    heartbeat_window_minutes = serializers.SerializerMethodField()
+    heartbeat_interval_minutes = serializers.SerializerMethodField()
 
     class Meta:
         model = Server
@@ -286,11 +381,25 @@ class ServerSerializer(serializers.ModelSerializer):
             "server_group", "server_group_name", "project_name",
             "ip_address", "last_seen", "created_at",
             "status", "seconds_since_seen", "likely_replaced_by",
+            "heartbeat_windows",
+            "heartbeat_expected",
+            "heartbeat_received",
+            "heartbeat_missed",
+            "heartbeat_rhythm_status",
+            "heartbeat_window_minutes",
+            "heartbeat_interval_minutes",
         ]
         read_only_fields = [
             "id", "last_seen", "created_at",
             "project_name",
             "status", "seconds_since_seen", "likely_replaced_by",
+            "heartbeat_windows",
+            "heartbeat_expected",
+            "heartbeat_received",
+            "heartbeat_missed",
+            "heartbeat_rhythm_status",
+            "heartbeat_window_minutes",
+            "heartbeat_interval_minutes",
         ]
 
     def _now(self):
@@ -308,6 +417,40 @@ class ServerSerializer(serializers.ModelSerializer):
 
     def get_status(self, obj):
         return server_status_for(obj.last_seen, now=self._now())
+
+    def _heartbeat_rhythm_payload(self, obj):
+        cache = self.context.setdefault("_heartbeat_rhythm_cache", {})
+        if obj.id in cache:
+            return cache[obj.id]
+        m = self.context.get("heartbeat_rhythm_by_server_id")
+        if m is not None and obj.id in m:
+            cache[obj.id] = m[obj.id]
+        else:
+            cache[obj.id] = build_heartbeat_rhythm_by_server_id(
+                [obj.id], self._now(), {obj.id: obj.last_seen}
+            )[obj.id]
+        return cache[obj.id]
+
+    def get_heartbeat_windows(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_windows"]
+
+    def get_heartbeat_expected(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_expected"]
+
+    def get_heartbeat_received(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_received"]
+
+    def get_heartbeat_missed(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_missed"]
+
+    def get_heartbeat_rhythm_status(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_rhythm_status"]
+
+    def get_heartbeat_window_minutes(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_window_minutes"]
+
+    def get_heartbeat_interval_minutes(self, obj):
+        return self._heartbeat_rhythm_payload(obj)["heartbeat_interval_minutes"]
 
     def get_likely_replaced_by(self, obj):
         # Only hint when the row itself isn't fresh — an online row is not a ghost.

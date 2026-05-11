@@ -10,6 +10,7 @@ from .models import (
     Project,
     ServerGroup,
     Server,
+    ServerHeartbeatLog,
     Assignment,
 )
 from .provision import generate_provision_script
@@ -362,6 +363,7 @@ class APITests(TestCase):
         server = Server.objects.get(server_group=sg)
         self.assertEqual(server.hostname, "web-01")
         self.assertIsNotNone(server.last_seen)
+        self.assertEqual(ServerHeartbeatLog.objects.filter(server=server).count(), 1)
 
     def test_heartbeat_updates_existing(self):
         sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
@@ -377,6 +379,25 @@ class APITests(TestCase):
             format="json",
         )
         self.assertEqual(Server.objects.filter(server_group=sg).count(), 1)
+        self.assertEqual(ServerHeartbeatLog.objects.filter(server__server_group=sg).count(), 2)
+
+    def test_servers_list_includes_heartbeat_rhythm(self):
+        from django.utils import timezone
+
+        sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
+        now = timezone.now()
+        srv = Server.objects.create(
+            name="n", hostname="rhythm-host", server_group=sg, last_seen=now
+        )
+        ServerHeartbeatLog.objects.create(server=srv, recorded_at=now)
+        res = self.client.get("/api/servers/")
+        self.assertEqual(res.status_code, 200)
+        row = next(s for s in res.data if s["hostname"] == "rhythm-host")
+        self.assertEqual(len(row["heartbeat_windows"]), 12)
+        self.assertEqual(row["heartbeat_expected"], 12)
+        self.assertIn(row["heartbeat_rhythm_status"], ("stable", "warning", "degrading", "offline", "unknown"))
+        self.assertEqual(row["heartbeat_window_minutes"], 60)
+        self.assertEqual(row["heartbeat_interval_minutes"], 5)
 
     def test_server_status_buckets(self):
         from datetime import timedelta

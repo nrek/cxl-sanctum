@@ -8,6 +8,7 @@ from .models import (
     SSHKey,
     ServerGroup,
     Server,
+    ServerHeartbeatLog,
     Assignment,
 )
 
@@ -73,6 +74,13 @@ class ServerAdmin(admin.ModelAdmin):
     list_display = ("name", "hostname", "server_group", "last_seen", "ip_address")
     list_filter = ("server_group",)
     search_fields = ("name", "hostname")
+
+
+@admin.register(ServerHeartbeatLog)
+class ServerHeartbeatLogAdmin(admin.ModelAdmin):
+    list_display = ("server", "recorded_at")
+    list_filter = ("recorded_at",)
+    raw_id_fields = ("server",)
 
 
 @admin.register(Assignment)

@@ -28,6 +28,7 @@ from .models import (
     Project,
     ServerGroup,
     Server,
+    ServerHeartbeatLog,
     Assignment,
     WorkspaceAdmin,
 )
@@ -44,6 +45,7 @@ from .serializers import (
     ServerSerializer,
     SERVER_ONLINE_WITHIN_SEC,
     SERVER_STALE_WITHIN_SEC,
+    build_heartbeat_rhythm_by_server_id,
     AssignmentSerializer,
     WorkspaceAdminSerializer,
     WorkspaceAdminCreateSerializer,
@@ -561,6 +563,25 @@ class ServerViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(Q(last_seen__lt=stale_at) | Q(last_seen__isnull=True))
         return qs
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        ctx = self.get_serializer_context()
+        by_id = {s.id: s.last_seen for s in queryset}
+        ctx["heartbeat_rhythm_by_server_id"] = build_heartbeat_rhythm_by_server_id(
+            list(by_id.keys()), ctx["_now"], by_id
+        )
+        serializer = self.get_serializer(queryset, many=True, context=ctx)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        ctx = self.get_serializer_context()
+        ctx["heartbeat_rhythm_by_server_id"] = build_heartbeat_rhythm_by_server_id(
+            [instance.id], ctx["_now"], {instance.id: instance.last_seen}
+        )
+        serializer = self.get_serializer(instance, context=ctx)
+        return Response(serializer.data)
+
     @action(detail=False, methods=["post"], url_path="prune")
     def prune(self, request):
         """Bulk-delete dead servers, workspace-scoped, optionally by server_group.
@@ -763,16 +784,22 @@ def heartbeat_view(request, token):
     server_group = get_object_or_404(ServerGroup, provision_token=token)
     hostname = request.data.get("hostname", "")
     ip_address = request.META.get("REMOTE_ADDR", "")
+    ts = timezone.now()
 
     server, _created = Server.objects.update_or_create(
         server_group=server_group,
         hostname=hostname,
         defaults={
             "name": hostname or f"server-{uuid.uuid4().hex[:8]}",
-            "last_seen": timezone.now(),
+            "last_seen": ts,
             "ip_address": ip_address if ip_address else None,
         },
     )
+    ServerHeartbeatLog.objects.create(server=server, recorded_at=ts)
+    ServerHeartbeatLog.objects.filter(
+        server_id=server.id,
+        recorded_at__lt=ts - timedelta(days=3),
+    ).delete()
     return Response({"status": "ok", "server_id": server.id})
 
 
