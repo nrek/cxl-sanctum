@@ -8,6 +8,7 @@
 #
 #   ./sanctum-update.sh            # pull, then build/restart only if anything changed
 #   ./sanctum-update.sh --build    # skip git pull; force pip+migrate+npm build+restart
+#   ./sanctum-update.sh --rebuild  # UI-only: npm ci + build + standalone copy + restart sanctum-ui
 #   ./sanctum-update.sh --help
 #
 # Paths (override with env):
@@ -24,10 +25,10 @@ set -euo pipefail
 die() { echo "error: $*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,20p' "$0" | sed 's/^# //' | sed 's/^#//'
+  sed -n '2,22p' "$0" | sed 's/^# //' | sed 's/^#//'
 }
 
-FORCE_BUILD=0
+MODE=normal
 
 case "${1:-}" in
   --help|-h)
@@ -35,7 +36,10 @@ case "${1:-}" in
     exit 0
     ;;
   --build)
-    FORCE_BUILD=1
+    MODE=build
+    ;;
+  --rebuild)
+    MODE=rebuild
     ;;
   "")
     ;;
@@ -127,6 +131,30 @@ activate_venv() {
   source "$VENV/bin/activate"
 }
 
+build_ui() {
+  echo
+  echo ">>> npm ci + build (ui/)"
+  (cd "$CORE_REPO/ui" && NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" npm ci && npm run build)
+  echo ">>> copy Next standalone static assets (if using standalone output)"
+  if [[ -d "$CORE_REPO/ui/.next/standalone" ]]; then
+    mkdir -p "$CORE_REPO/ui/.next/standalone/.next"
+    # .next/static — hashed JS/CSS bundles. Without this copy, the standalone
+    # server returns 404 for /_next/static/* and the UI loads unstyled.
+    rm -rf "$CORE_REPO/ui/.next/standalone/.next/static"
+    cp -r "$CORE_REPO/ui/.next/static" "$CORE_REPO/ui/.next/standalone/.next/static"
+    # public/ — static assets like /og/*.png, /favicon.ico. Next's minimal
+    # standalone server does NOT serve these unless they live next to
+    # server.js; without this copy, URLs like /og/sanctum.png return 404
+    # and the client-side AuthProvider redirects them to /login.
+    if [[ -d "$CORE_REPO/ui/public" ]]; then
+      rm -rf "$CORE_REPO/ui/.next/standalone/public"
+      cp -r "$CORE_REPO/ui/public" "$CORE_REPO/ui/.next/standalone/public"
+    fi
+  else
+    echo "    (no .next/standalone — skip copy; use your own start command)"
+  fi
+}
+
 echo "Self-hosted Sanctum update"
 echo "  repo:     $CORE_REPO"
 echo "  venv:     $VENV"
@@ -136,12 +164,27 @@ echo
 
 [[ -d "$CORE_REPO/.git" ]] || die "not a git repo: $CORE_REPO"
 preflight_writable "$CORE_REPO" "repo"
+
+# --rebuild: UI-only fast path. No git pull, no pip, no migrate, no API restart.
+# Use this when stylesheets/JS are missing on the host (e.g. .next/standalone
+# was never populated) or you only need to ship a UI tweak.
+if [[ "$MODE" == "rebuild" ]]; then
+  echo ">>> --rebuild: UI-only rebuild of current checkout"
+  echo "    at $(git -C "$CORE_REPO" rev-parse --short HEAD) on $(git -C "$CORE_REPO" rev-parse --abbrev-ref HEAD)"
+  build_ui
+  echo
+  echo ">>> systemctl restart sanctum-ui"
+  sudo systemctl restart sanctum-ui
+  echo "Done."
+  exit 0
+fi
+
 preflight_writable "$CORE_REPO/.git" ".git directory"
 preflight_git_trust "$CORE_REPO"
 
 RUN_BUILD=0
 
-if [[ "$FORCE_BUILD" -eq 1 ]]; then
+if [[ "$MODE" == "build" ]]; then
   echo ">>> --build: skipping git pull; forcing rebuild of current checkout"
   echo "    at $(git -C "$CORE_REPO" rev-parse --short HEAD) on $(git -C "$CORE_REPO" rev-parse --abbrev-ref HEAD)"
   RUN_BUILD=1
@@ -168,26 +211,7 @@ if [[ "$RUN_BUILD" -eq 1 ]]; then
   load_env_if_present
   (cd "$CORE_REPO/server" && python manage.py migrate)
 
-  echo
-  echo ">>> npm ci + build (ui/)"
-  (cd "$CORE_REPO/ui" && NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" npm ci && npm run build)
-  echo ">>> copy Next standalone static assets (if using standalone output)"
-  if [[ -d "$CORE_REPO/ui/.next/standalone" ]]; then
-    mkdir -p "$CORE_REPO/ui/.next/standalone/.next"
-    # .next/static — hashed JS/CSS bundles.
-    rm -rf "$CORE_REPO/ui/.next/standalone/.next/static"
-    cp -r "$CORE_REPO/ui/.next/static" "$CORE_REPO/ui/.next/standalone/.next/static"
-    # public/ — static assets like /og/*.png, /favicon.ico. Next's minimal
-    # standalone server does NOT serve these unless they live next to
-    # server.js; without this copy, URLs like /og/sanctum.png return 404
-    # and the client-side AuthProvider redirects them to /login.
-    if [[ -d "$CORE_REPO/ui/public" ]]; then
-      rm -rf "$CORE_REPO/ui/.next/standalone/public"
-      cp -r "$CORE_REPO/ui/public" "$CORE_REPO/ui/.next/standalone/public"
-    fi
-  else
-    echo "    (no .next/standalone — skip copy; use your own start command)"
-  fi
+  build_ui
 
   echo
   echo ">>> systemctl restart sanctum-api sanctum-ui"
@@ -195,5 +219,6 @@ if [[ "$RUN_BUILD" -eq 1 ]]; then
   echo "Done."
 else
   echo
-  echo "Nothing to do — use --build to rebuild the current checkout without pulling."
+  echo "Nothing to do — use --build to rebuild the current checkout without pulling,"
+  echo "or --rebuild for a UI-only rebuild + sanctum-ui restart."
 fi
