@@ -1,0 +1,11 @@
+# Store LF in git; Ubuntu deploy + PR diffs stay clean on Windows checkouts.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
