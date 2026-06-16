@@ -242,6 +242,8 @@ class ProvisionScriptTests(TestCase):
             'remove_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
             script,
         )
+        self.assertIn('(("$#" == 0)) && return 0', script)
+        self.assertEqual(script.count('(("$#" == 0)) && return 0'), 2)
 
     def test_script_is_idempotent_structure(self):
         Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
