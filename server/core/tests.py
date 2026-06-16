@@ -227,6 +227,22 @@ class ProvisionScriptTests(TestCase):
         self.assertIn('logical=$(sanctum_logical_username "$username")', script)
         self.assertIn('delete_user "$logical"', script)
 
+    def test_empty_supplemental_groups_safe_under_nounset(self):
+        """Empty MANAGED_SUPPLEMENTAL_GROUPS must not trip set -u on [@] expansion."""
+        Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
+        script = generate_provision_script(self.sg)
+        self.assertIn("MANAGED_SUPPLEMENTAL_GROUPS=(\n)", script)
+        safe = '${MANAGED_SUPPLEMENTAL_GROUPS[@]+"${MANAGED_SUPPLEMENTAL_GROUPS[@]}"}'
+        self.assertEqual(script.count(safe), 2)
+        self.assertNotIn(
+            'ensure_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
+            script,
+        )
+        self.assertNotIn(
+            'remove_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
+            script,
+        )
+
     def test_script_is_idempotent_structure(self):
         Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
         script = generate_provision_script(self.sg)
@@ -247,7 +263,7 @@ class ProvisionScriptTests(TestCase):
         self.assertIn("  deployers", script)
         self.assertIn("  commonspace-staging", script)
         self.assertIn(
-            'ensure_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
+            'ensure_supplemental_groups "$username" ${MANAGED_SUPPLEMENTAL_GROUPS[@]+"${MANAGED_SUPPLEMENTAL_GROUPS[@]}"}',
             script,
         )
 
@@ -262,7 +278,7 @@ class ProvisionScriptTests(TestCase):
         self.assertIn("rename_sanctum_account", script)
         self.assertIn("reactivate_sanctum_user", script)
         self.assertIn(
-            'remove_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
+            'remove_supplemental_groups "$username" ${MANAGED_SUPPLEMENTAL_GROUPS[@]+"${MANAGED_SUPPLEMENTAL_GROUPS[@]}"}',
             script,
         )
 
