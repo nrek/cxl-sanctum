@@ -9,7 +9,7 @@ def revoke_member_globally(member: Member) -> None:
     """
     Mark member as globally revoked: remove from all teams and ensure every
     environment they could reach (via teams or direct assignment) has a direct
-    member assignment with role=removed so provision scripts emit remove_user.
+    member assignment with role=removed so provision scripts emit revoke_user.
     """
     if member.access_revoked:
         return

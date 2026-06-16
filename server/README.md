@@ -106,7 +106,7 @@ After both steps, the `dubious ownership` warning and `Permission denied` on `.g
 4. **Assign team access** on the project page: grant the same role on all environments at once, or grant one team/environment at a time, or edit cells in the matrix. Roles:
    - **User** — standard login, no sudo
    - **Sudo** — login + sudo access
-   - **Removed** — account locked, keys revoked, sudo removed
+   - **Removed** — account locked, keys stripped, renamed to `revoked:{username}` on the server
 5. **Copy the provisioning command** for each environment and run it on matching servers (or cron).
 6. **Optional:** on each environment, add **supplemental Linux groups** (e.g. `deployers`, `www-data`, `client42-deploy`) so assigned users are added to those existing groups on the next provision run. Privileged groups like `sudo` and `docker` are blocked; missing groups are skipped and logged.
 7. **Ungrouped** server groups (no project) still work and appear on the Projects list for ad-hoc use.
@@ -162,7 +162,9 @@ The script is fully idempotent. Running it twice with no dashboard changes produ
 - **Removes** removed users from Sanctum-managed supplemental groups only (unrelated local groups are preserved)
 - **Skips** missing supplemental groups (logged to `/var/log/sanctum.log`; Sanctum does not create groups by default)
 - **Blocks** dangerous supplemental groups (`sudo`, `docker`, `wheel`, etc.) even if misconfigured upstream
-- **Locks** removed users (`usermod -L`), clears their keys, strips sudo
+- **Revokes** removed users: strips keys/sudo/supplemental groups, renames OS account to `revoked:{username}` (home moved to match)
+- **Deletes** stale managed users no longer in Sanctum desired state: same strip, rename to `deleted:{username}`
+- **Reactivates** `revoked:{username}` or `deleted:{username}` back to `{username}` when access is granted again
 - **Logs** all actions to `/var/log/sanctum.log`
 - **Heartbeats** back to the API so you can track server check-ins
 
@@ -180,7 +182,7 @@ Each server group (environment) can declare **supplemental Linux groups**—cust
 - **Roles vs groups:** `user` / `sudo` / `removed` control login and sudo. Supplemental groups control file/deploy access only.
 - **Blocked groups:** `sudo`, `wheel`, `docker`, `lxd`, `root`, `shadow`, `disk`, and others that imply privilege escalation cannot be assigned as supplemental groups.
 - **Missing groups:** skipped and logged; create groups on the host first (or use your config management tool).
-- **Removal:** when a user is **removed** for an environment, Sanctum strips only the supplemental groups configured on that server group—not other local group memberships.
+- **Removal:** when a user is **removed** for an environment, Sanctum renames the OS account to `revoked:{username}`. When a managed user falls off all assignments entirely, cleanup renames to `deleted:{username}`. Sanctum strips only Sanctum-managed supplemental groups—not other local group memberships. Accounts are not deleted with `userdel`; homes are preserved under the new name.
 
 ## Configuration
 
