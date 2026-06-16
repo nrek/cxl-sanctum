@@ -28,3 +28,6 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Local mocks / design uploads (not shipped)
+.mocks/

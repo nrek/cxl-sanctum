@@ -227,7 +227,7 @@ def generate_provision_script(server_group, request=None):
         '      strip_sanctum_access "$current"',
         "    done",
         "    return",
-        "  fi",
+        "  }",
         '  if id "$target" &>/dev/null; then',
         '    strip_sanctum_access "$target"',
         '    log "OK already deleted $username as $target"',

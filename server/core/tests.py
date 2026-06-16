@@ -207,6 +207,20 @@ class ProvisionScriptTests(TestCase):
         self.assertIn("sanctum_logical_username", script)
         self.assertIn('revoked:*|deleted:*)', script)
 
+    def test_delete_user_closes_or_fallback_with_brace_not_fi(self):
+        """Regression: || { ... } must not emit fi (bash syntax error near fi)."""
+        script = generate_provision_script(self.sg)
+        self.assertIn(
+            'target=$(sanctum_rename_target deleted "$username") || {',
+            script,
+        )
+        self.assertIn(
+            '    for current in "$username" "revoked:${username}" "deleted:${username}"; do',
+            script,
+        )
+        self.assertIn("    return\n  }", script)
+        self.assertNotIn("    return\n  fi\n  if id \"$target\"", script)
+
     def test_cleanup_uses_logical_username(self):
         Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
         script = generate_provision_script(self.sg)
