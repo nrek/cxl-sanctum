@@ -365,6 +365,7 @@ export interface ServerGroup {
   project_name?: string;
   name: string;
   description: string;
+  supplemental_groups?: string[];
   provision_token: string;
   server_count?: number;
   assignment_count?: number;
@@ -467,6 +468,7 @@ export interface ProjectAccessEnvironment {
   id: number;
   name: string;
   provision_token: string;
+  supplemental_groups: string[];
 }
 
 export interface ProjectAccessCell {

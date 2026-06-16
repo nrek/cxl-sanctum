@@ -14,6 +14,7 @@ from .models import (
     Assignment,
     WorkspaceAdmin,
 )
+from .linux_groups import validate_supplemental_groups
 from .workspace import get_request_workspace
 
 
@@ -202,6 +203,7 @@ class ServerGroupSerializer(serializers.ModelSerializer):
             "project_name",
             "name",
             "description",
+            "supplemental_groups",
             "provision_token",
             "server_count",
             "assignment_count",
@@ -209,6 +211,14 @@ class ServerGroupSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "provision_token", "created_at", "updated_at"]
+
+    def validate_supplemental_groups(self, value):
+        try:
+            return validate_supplemental_groups(value)
+        except ValueError as exc:
+            if exc.args and isinstance(exc.args[0], dict):
+                raise serializers.ValidationError(exc.args[0])
+            raise serializers.ValidationError(str(exc))
 
 
 SERVER_ONLINE_WITHIN_SEC = 10 * 60

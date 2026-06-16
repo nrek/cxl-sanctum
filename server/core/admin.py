@@ -61,7 +61,13 @@ class SSHKeyAdmin(admin.ModelAdmin):
 
 @admin.register(ServerGroup)
 class ServerGroupAdmin(admin.ModelAdmin):
-    list_display = ("name", "project", "provision_token", "server_count", "created_at")
+    list_display = (
+        "name",
+        "project",
+        "provision_token",
+        "server_count",
+        "created_at",
+    )
     list_filter = ("project",)
     readonly_fields = ("provision_token",)
 

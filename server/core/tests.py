@@ -14,6 +14,37 @@ from .models import (
     Assignment,
 )
 from .provision import generate_provision_script
+from .linux_groups import (
+    validate_linux_group_name,
+    is_blocked_supplemental_group,
+    validate_supplemental_groups,
+)
+
+
+class LinuxGroupValidationTests(TestCase):
+    def test_valid_group_names(self):
+        for name in ("www-data", "commonspace-staging", "client42-deploy", "cxl_stage"):
+            validate_linux_group_name(name)
+
+    def test_invalid_group_names(self):
+        for name in ("Bad Group", "../root", "", "UPPER"):
+            with self.assertRaises(ValueError):
+                validate_linux_group_name(name)
+
+    def test_blocked_groups(self):
+        self.assertTrue(is_blocked_supplemental_group("sudo"))
+        self.assertTrue(is_blocked_supplemental_group("docker"))
+        self.assertFalse(is_blocked_supplemental_group("www-data"))
+
+    def test_validate_supplemental_groups_dedupes(self):
+        result = validate_supplemental_groups(["deployers", "deployers", "www-data"])
+        self.assertEqual(result, ["deployers", "www-data"])
+
+    def test_validate_supplemental_groups_collects_errors(self):
+        with self.assertRaises(ValueError) as ctx:
+            validate_supplemental_groups(["sudo", "Bad Group"])
+        self.assertIn("sudo", ctx.exception.args[0])
+        self.assertIn("Bad Group", ctx.exception.args[0])
 
 
 class ModelTests(TestCase):
@@ -174,6 +205,43 @@ class ProvisionScriptTests(TestCase):
         self.assertIn("set -euo pipefail", script)
         self.assertIn("MANAGED BY SANCTUM", script)
 
+    def test_supplemental_groups_in_script(self):
+        self.sg.supplemental_groups = ["www-data", "deployers", "commonspace-staging"]
+        self.sg.save(update_fields=["supplemental_groups"])
+        Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
+
+        script = generate_provision_script(self.sg)
+        self.assertIn("ensure_supplemental_groups", script)
+        self.assertIn("remove_supplemental_groups", script)
+        self.assertIn("is_blocked_group", script)
+        self.assertIn('MANAGED_SUPPLEMENTAL_GROUPS=(', script)
+        self.assertIn("  www-data", script)
+        self.assertIn("  deployers", script)
+        self.assertIn("  commonspace-staging", script)
+        self.assertIn(
+            'ensure_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
+            script,
+        )
+
+    def test_removed_user_gets_supplemental_group_removal(self):
+        self.sg.supplemental_groups = ["deployers"]
+        self.sg.save(update_fields=["supplemental_groups"])
+        charlie = Member.objects.create(username="charlie", workspace=self.ws)
+        Assignment.objects.create(member=charlie, server_group=self.sg, role="removed")
+
+        script = generate_provision_script(self.sg)
+        self.assertIn("remove_user charlie", script)
+        self.assertIn(
+            'remove_supplemental_groups "$username" "${MANAGED_SUPPLEMENTAL_GROUPS[@]}"',
+            script,
+        )
+
+    def test_sudo_not_in_supplemental_groups_array(self):
+        self.sg.supplemental_groups = ["sudo"]
+        self.sg.save(update_fields=["supplemental_groups"])
+        script = generate_provision_script(self.sg)
+        self.assertIn("is_blocked_group", script)
+
 
 class APITests(TestCase):
     def setUp(self):
@@ -313,10 +381,44 @@ class APITests(TestCase):
         )
         self.assertEqual(res.status_code, 201)
         self.assertIn("provision_token", res.data)
+        self.assertEqual(res.data["supplemental_groups"], [])
         gid = res.data["id"]
+
+        res = self.client.patch(
+            f"/api/server-groups/{gid}/",
+            {"supplemental_groups": ["www-data", "deployers"]},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.data["supplemental_groups"], ["www-data", "deployers"])
 
         res = self.client.post(f"/api/server-groups/{gid}/regenerate-token/")
         self.assertEqual(res.status_code, 200)
+
+    def test_server_groups_rejects_blocked_supplemental_groups(self):
+        res = self.client.post(
+            "/api/server-groups/",
+            {
+                "name": "staging",
+                "supplemental_groups": ["sudo", "docker"],
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("sudo", res.data["supplemental_groups"])
+        self.assertIn("docker", res.data["supplemental_groups"])
+
+    def test_server_groups_rejects_invalid_supplemental_group_names(self):
+        res = self.client.post(
+            "/api/server-groups/",
+            {
+                "name": "qa",
+                "supplemental_groups": ["Bad Group"],
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("Bad Group", res.data["supplemental_groups"])
 
     def test_assignments_crud(self):
         t = Team.objects.create(name="Dev", workspace=self.ws)

@@ -10,6 +10,7 @@ import {
   ServerGroup,
 } from "@/lib/api";
 import ProvisionSnippets from "@/components/ProvisionSnippets";
+import SupplementalGroupsEditor from "@/components/SupplementalGroupsEditor";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 import ViewToggle from "@/components/ViewToggle";
@@ -73,6 +74,17 @@ export default function ProjectsPage() {
     "sanctum_projects_view",
     "tiles"
   );
+
+  const handleSaveUngroupedSupplementalGroups = async (
+    groupId: number,
+    supplemental_groups: string[]
+  ) => {
+    await apiFetch(`/server-groups/${groupId}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ supplemental_groups }),
+    });
+    load();
+  };
 
   const load = useCallback(() => {
     apiFetch<Project[]>("/projects/").then(setProjects);
@@ -315,6 +327,13 @@ export default function ProjectsPage() {
                   apiBase={apiBase}
                   token={g.provision_token}
                   variant="dense"
+                />
+                <SupplementalGroupsEditor
+                  id={`ungrouped-supplemental-${g.id}`}
+                  groups={g.supplemental_groups ?? []}
+                  onChange={(groups) =>
+                    void handleSaveUngroupedSupplementalGroups(g.id, groups)
+                  }
                 />
               </div>
             ))}

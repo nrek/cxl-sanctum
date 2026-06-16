@@ -142,6 +142,14 @@ class ServerGroup(models.Model):
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, default="")
+    supplemental_groups = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Existing Linux groups assigned users should belong to on provision "
+            "(customer-defined; Sanctum does not create missing groups by default)."
+        ),
+    )
     provision_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

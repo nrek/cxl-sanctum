@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import ProvisionSnippets from "@/components/ProvisionSnippets";
 import ServerInventory from "@/components/ServerInventory";
+import SupplementalGroupsEditor from "@/components/SupplementalGroupsEditor";
 import Modal from "@/components/Modal";
 import Tooltip from "@/components/Tooltip";
 
@@ -290,6 +291,17 @@ export default function ProjectDetailPage() {
     loadAccess();
   };
 
+  const handleSaveSupplementalGroups = async (
+    envId: number,
+    supplemental_groups: string[]
+  ) => {
+    await apiFetch(`/server-groups/${envId}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ supplemental_groups }),
+    });
+    loadAccess();
+  };
+
   const openDeleteEnvironment = (env: { id: number; name: string }) => {
     setDeleteEnvConfirm("");
     setDeleteEnvTarget(env);
@@ -516,6 +528,13 @@ export default function ProjectDetailPage() {
                       <ProvisionSnippets
                         apiBase={apiBase}
                         token={env.provision_token}
+                      />
+                      <SupplementalGroupsEditor
+                        id={`supplemental-groups-${env.id}`}
+                        groups={env.supplemental_groups ?? []}
+                        onChange={(groups) =>
+                          void handleSaveSupplementalGroups(env.id, groups)
+                        }
                       />
                       <ServerInventory
                         servers={serversForGroup(env.id)}

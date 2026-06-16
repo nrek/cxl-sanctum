@@ -6,9 +6,9 @@ Open-source SSH access management: one place to manage users, teams, and SSH pub
 
 You host this API yourself alongside the companion dashboard (**`../ui/`** in the monorepo), and point your machines at your own provision URLs. Prefer not to run servers? **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** offers a hosted Sanctum you can try first.
 
-**What it does:** user accounts, `authorized_keys`, and sudo membership—aligned from the dashboard and applied on target hosts via `curl | bash` (typically cron).
+**What it does:** user accounts, `authorized_keys`, sudo membership, and **customer-defined supplemental Linux groups** per environment—aligned from the dashboard and applied on target hosts via `curl | bash` (typically cron).
 
-**What it deliberately doesn't do:** no agent on target servers, no group management beyond sudo, no push mechanism, no session auditing.
+**What it deliberately doesn't do:** no agent on target servers, no heartbeat-driven group writes, no auto-creation of missing Linux groups by default, no push mechanism, no session auditing.
 
 ## Architecture
 
@@ -108,7 +108,8 @@ After both steps, the `dubious ownership` warning and `Permission denied` on `.g
    - **Sudo** — login + sudo access
    - **Removed** — account locked, keys revoked, sudo removed
 5. **Copy the provisioning command** for each environment and run it on matching servers (or cron).
-6. **Ungrouped** server groups (no project) still work and appear on the Projects list for ad-hoc use.
+6. **Optional:** on each environment, add **supplemental Linux groups** (e.g. `deployers`, `www-data`, `client42-deploy`) so assigned users are added to those existing groups on the next provision run. Privileged groups like `sudo` and `docker` are blocked; missing groups are skipped and logged.
+7. **Ungrouped** server groups (no project) still work and appear on the Projects list for ad-hoc use.
 
 Server groups belong to a project when created from that project; the provisioning API and scripts are unchanged.
 
@@ -156,7 +157,11 @@ The script is fully idempotent. Running it twice with no dashboard changes produ
 
 - **Creates** missing user accounts (`useradd -m -s /bin/bash`)
 - **Writes** `~/.ssh/authorized_keys` for each user (overwritten to match desired state)
-- **Adds/removes** sudo group membership based on role
+- **Adds/removes** sudo group membership based on role (supplemental groups cannot grant sudo)
+- **Adds** active users to configured supplemental Linux groups when those groups already exist on the host
+- **Removes** removed users from Sanctum-managed supplemental groups only (unrelated local groups are preserved)
+- **Skips** missing supplemental groups (logged to `/var/log/sanctum.log`; Sanctum does not create groups by default)
+- **Blocks** dangerous supplemental groups (`sudo`, `docker`, `wheel`, etc.) even if misconfigured upstream
 - **Locks** removed users (`usermod -L`), clears their keys, strips sudo
 - **Logs** all actions to `/var/log/sanctum.log`
 - **Heartbeats** back to the API so you can track server check-ins
@@ -167,6 +172,15 @@ If a member is in multiple teams assigned to the same server group:
 
 - **sudo** wins over **user** (most permissive active role applies)
 - **removed** only takes effect if the member has no active (user/sudo) assignments
+
+### Supplemental Linux groups
+
+Each server group (environment) can declare **supplemental Linux groups**—customer-defined names like `deployers`, `www-data`, or `commonspace-staging`. On each provision run, Sanctum adds active assigned users to those groups when they already exist on the host.
+
+- **Roles vs groups:** `user` / `sudo` / `removed` control login and sudo. Supplemental groups control file/deploy access only.
+- **Blocked groups:** `sudo`, `wheel`, `docker`, `lxd`, `root`, `shadow`, `disk`, and others that imply privilege escalation cannot be assigned as supplemental groups.
+- **Missing groups:** skipped and logged; create groups on the host first (or use your config management tool).
+- **Removal:** when a user is **removed** for an environment, Sanctum strips only the supplemental groups configured on that server group—not other local group memberships.
 
 ## Configuration
 

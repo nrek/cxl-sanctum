@@ -359,7 +359,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "environments": [
-                    {"id": e.id, "name": e.name, "provision_token": str(e.provision_token)}
+                    {
+                        "id": e.id,
+                        "name": e.name,
+                        "provision_token": str(e.provision_token),
+                        "supplemental_groups": list(e.supplemental_groups or []),
+                    }
                     for e in envs
                 ],
                 "team_rows": team_rows,
