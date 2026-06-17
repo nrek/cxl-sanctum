@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalPage from "@/components/LegalPage";
 
 export const metadata: Metadata = {
-  title: "Terms of Use · SANCTUM",
+  title: "Terms of Use",
   description:
     "Terms of Use for the SANCTUM service operated by Craft and Logic, Inc.",
 };

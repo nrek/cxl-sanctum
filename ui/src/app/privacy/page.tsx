@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalPage from "@/components/LegalPage";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · SANCTUM",
+  title: "Privacy Policy",
   description:
     "How Craft and Logic, Inc. collects, uses, and protects information when you use SANCTUM.",
 };
