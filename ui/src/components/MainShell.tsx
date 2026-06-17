@@ -19,7 +19,7 @@ export default function MainShell({
         fullBleed
           ? "min-h-screen"
           : `min-h-screen pb-20 transition-[margin] duration-200 md:pb-0 ${
-              collapsed ? "md:ml-16" : "md:ml-60"
+              collapsed ? "md:ml-16" : "md:ml-[248px]"
             }`
       }
     >

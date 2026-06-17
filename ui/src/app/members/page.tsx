@@ -9,6 +9,8 @@ import {
   Team,
 } from "@/lib/api";
 import Modal from "@/components/Modal";
+import PageHeader from "@/components/PageHeader";
+import MemberAvatar from "@/components/MemberAvatar";
 import Tooltip from "@/components/Tooltip";
 import ViewToggle from "@/components/ViewToggle";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -245,16 +247,19 @@ export default function MembersPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-sanctum-mist">Members</h1>
-        <div className="flex items-center gap-3">
-          <ViewToggle mode={viewMode} onChange={setViewMode} />
-          <button type="button" onClick={openCreate} className="btn-primary">
-            <i className="fa-solid fa-circle-plus" aria-hidden />
-            New Member
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Members"
+        subtitle="SSH users, keys, and team assignments."
+        actions={
+          <>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
+            <button type="button" onClick={openCreate} className="btn-primary">
+              <i className="fa-solid fa-circle-plus" aria-hidden />
+              New Member
+            </button>
+          </>
+        }
+      />
 
       {viewMode === "tiles" ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -266,7 +271,13 @@ export default function MembersPage() {
               }`}
             >
               <div className="mb-2 flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-3">
+                  <MemberAvatar
+                    name={m.username}
+                    username={m.username}
+                    size="md"
+                  />
+                  <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -284,6 +295,7 @@ export default function MembersPage() {
                   <p className="text-sm text-sanctum-muted">
                     {m.email || "No email"}
                   </p>
+                </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
                   <Tooltip label="Edit member">
@@ -376,7 +388,13 @@ export default function MembersPage() {
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="flex min-w-0 items-start gap-3">
+                  <MemberAvatar
+                    name={m.username}
+                    username={m.username}
+                    size="md"
+                  />
+                  <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -411,6 +429,7 @@ export default function MembersPage() {
                       ))}
                     </div>
                   ) : null}
+                  </div>
                 </div>
                 <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
                   {!m.access_revoked && (

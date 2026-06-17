@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiFetch, TeamDetail, Member } from "@/lib/api";
 import Modal from "@/components/Modal";
+import PageHeader from "@/components/PageHeader";
+import MemberAvatar from "@/components/MemberAvatar";
 import Tooltip from "@/components/Tooltip";
 
 export default function TeamDetailPage() {
@@ -100,21 +102,15 @@ export default function TeamDetailPage() {
         </Link>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="mb-1 text-2xl font-bold text-sanctum-mist">{team.name}</h1>
-          <p className="text-sm text-sanctum-muted">
-            {team.description || "No description"}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={openEdit}
-          className="btn-secondary text-sm"
-        >
-          Edit team
-        </button>
-      </div>
+      <PageHeader
+        title={team.name}
+        subtitle={team.description || "No description"}
+        actions={
+          <button type="button" onClick={openEdit} className="btn-secondary text-sm">
+            Edit team
+          </button>
+        }
+      />
 
       <p className="mb-6 text-sm text-sanctum-muted">
         Users in this group inherit access from team assignments on{" "}
@@ -198,9 +194,16 @@ export default function TeamDetailPage() {
             {team.members.map((m) => (
               <tr key={m.id} className="hover:bg-white/[0.03]">
                 <td className="px-3 py-3 font-medium sm:px-4">
-                  <Link href="/members" className="link-accent">
-                    {m.username}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <MemberAvatar
+                      name={m.username}
+                      username={m.username}
+                      size="sm"
+                    />
+                    <Link href="/members" className="link-accent">
+                      {m.username}
+                    </Link>
+                  </div>
                 </td>
                 <td className="max-w-0 truncate px-3 py-3 text-sm text-sanctum-muted sm:px-4">
                   {m.email || "—"}

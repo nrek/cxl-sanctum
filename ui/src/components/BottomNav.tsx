@@ -48,7 +48,7 @@ export default function BottomNav() {
     <>
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-sanctum-line/20 bg-[#182a35]/95 backdrop-blur supports-[backdrop-filter]:bg-[#182a35]/80 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-sanctum-line bg-sanctum-surface/95 backdrop-blur supports-[backdrop-filter]:bg-sanctum-surface/80 md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {PRIMARY_NAV.map((item) => {
@@ -107,7 +107,7 @@ export default function BottomNav() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <div
-            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-sanctum-line/20 bg-[#182a35] shadow-2xl"
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-sanctum-line/20 bg-sanctum-surface shadow-2xl"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-sanctum-line/40" aria-hidden />

@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import Modal from "@/components/Modal";
+import PageHeader from "@/components/PageHeader";
 
 export default function AdminsPage() {
   const { workspace, loading: wsLoading } = useWorkspace();
@@ -158,9 +159,8 @@ export default function AdminsPage() {
   if ((workspace?.role ?? "owner") !== "owner") {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
-        <h1 className="mb-4 text-2xl font-bold text-sanctum-mist">Admins</h1>
+        <PageHeader title="Admins" subtitle="Only the workspace owner can manage dashboard admins." />
         <p className="text-sanctum-muted">
-          Only the workspace owner can manage dashboard admins.{" "}
           <Link href="/dashboard" className="link-accent">
             Back to dashboard
           </Link>
@@ -171,13 +171,10 @@ export default function AdminsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-sanctum-mist">Workspace admins</h1>
-        <p className="mt-1 text-sm text-sanctum-muted">
-          Team leads can manage members, teams, projects, and environments. Billing
-          stays with the account owner.
-        </p>
-      </div>
+      <PageHeader
+        title="Workspace admins"
+        subtitle="Team leads can manage members, teams, projects, and environments. Billing stays with the account owner."
+      />
 
       <form
         onSubmit={(e) => void handleCreate(e)}

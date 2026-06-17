@@ -12,7 +12,7 @@ export function HeartbeatRhythm({ windows, status }: HeartbeatRhythmProps) {
     status === "offline" || status === "degrading"
       ? "bg-danger/55 ring-1 ring-danger/25"
       : "bg-warning/80 ring-1 ring-warning/20";
-  const healthyTone = "bg-success/90 ring-1 ring-success/25";
+  const healthyTone = "bg-success ring-1 ring-success/25";
 
   return (
     <div

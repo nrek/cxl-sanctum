@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+/** Hosted billing comparison — use only on dashboard or other hosted-billing surfaces. */
 const ROWS: { label: string; free: string; pro: string }[] = [
   {
     label: "Environments",
@@ -17,28 +18,28 @@ const ROWS: { label: string; free: string; pro: string }[] = [
 
 export default function PricingMatrix() {
   return (
-    <div className="mt-14 w-full max-w-3xl">
-      <h2 className="mb-2 text-center font-logo text-2xl font-normal tracking-[0.2em] text-slate-400">
-        PRICING
+    <div className="mt-8 w-full max-w-3xl">
+      <h2 className="mb-2 text-center font-display text-xl font-bold text-sanctum-mist">
+        Hosted pricing
       </h2>
-      <p className="mb-6 text-center text-sm text-slate-500">
-        Transparent pricing for hosted SANCTUM accounts.
+      <p className="mb-6 text-center text-sm text-sanctum-muted">
+        Transparent pricing for hosted Sanctum accounts.
       </p>
-      <div className="overflow-x-auto rounded-xl border border-white/10 bg-slate-900/40 backdrop-blur-sm">
+      <div className="overflow-x-auto rounded-xl border border-sanctum-line bg-sanctum-raised">
         <table className="w-full min-w-[320px] text-left text-sm">
           <thead>
-            <tr className="border-b border-white/10">
-              <th className="px-4 py-3 font-medium text-slate-400" scope="col">
+            <tr className="border-b border-sanctum-line">
+              <th className="px-4 py-3 font-medium text-sanctum-muted" scope="col">
                 {" "}
               </th>
               <th
-                className="px-4 py-3 font-semibold text-teal-200/95"
+                className="px-4 py-3 font-semibold text-sanctum-teal"
                 scope="col"
               >
                 Free
               </th>
               <th
-                className="px-4 py-3 font-semibold text-indigo-200/95"
+                className="px-4 py-3 font-semibold text-sanctum-accent"
                 scope="col"
               >
                 Pro
@@ -49,24 +50,32 @@ export default function PricingMatrix() {
             {ROWS.map((row) => (
               <tr
                 key={row.label}
-                className="border-b border-white/5 last:border-0"
+                className="border-b border-sanctum-line/50 last:border-0"
               >
                 <th
                   scope="row"
-                  className="whitespace-nowrap px-4 py-3 font-medium text-slate-300"
+                  className="whitespace-nowrap px-4 py-3 font-medium text-sanctum-mist"
                 >
                   {row.label}
                 </th>
-                <td className="px-4 py-3 text-slate-400">{row.free}</td>
-                <td className="px-4 py-3 text-slate-300">{row.pro}</td>
+                <td className="px-4 py-3 text-sanctum-muted">{row.free}</td>
+                <td className="px-4 py-3 text-sanctum-mist">{row.pro}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="mt-4 text-center text-xs text-slate-500">
-        Cancel anytime on Pro: billing and receipts are handled in <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="link-accent">Stripe</a>.
-        Need more than 6 environments on Free?{" "}
+      <p className="mt-4 text-center text-xs text-sanctum-muted">
+        Cancel anytime on Pro: billing and receipts are handled in{" "}
+        <a
+          href="https://stripe.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="link-accent"
+        >
+          Stripe
+        </a>
+        . Need more than 6 environments on Free?{" "}
         <Link href="/register" className="link-accent">
           Create an account
         </Link>{" "}

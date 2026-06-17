@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { apiFetch, Team } from "@/lib/api";
 import Modal from "@/components/Modal";
-import Tooltip from "@/components/Tooltip";
+import PageHeader from "@/components/PageHeader";
+import MemberAvatar from "@/components/MemberAvatar";
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -57,96 +58,69 @@ export default function TeamsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-sanctum-mist">Teams</h1>
-        <button type="button" onClick={openCreate} className="btn-primary">
-          <i className="fa-solid fa-circle-plus" aria-hidden />
-          New Team
-        </button>
-      </div>
+      <PageHeader
+        title="Teams"
+        subtitle="Groups of members you assign together."
+        actions={
+          <button type="button" onClick={openCreate} className="btn-primary">
+            <i className="fa-solid fa-circle-plus" aria-hidden />
+            New Team
+          </button>
+        }
+      />
 
-      <div className="sanctum-card overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-sanctum-line/15">
-          <thead className="bg-sanctum-ink/60">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted">
-                Members
-              </th>
-              <th className="hidden px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-sanctum-muted sm:table-cell">
-                Description
-              </th>
-              <th className="px-6 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-sanctum-line/15">
-            {teams.map((team) => (
-              <tr key={team.id} className="hover:bg-white/[0.03]">
-                <td className="px-6 py-4 font-medium">
-                  <Link
-                    href={`/teams/${team.id}`}
-                    className="text-sanctum-mist hover:text-sanctum-accent"
-                  >
-                    {team.name}
-                  </Link>
-                </td>
-                <td className="px-6 py-4 text-sanctum-muted">
-                  {team.member_count ?? 0}
-                </td>
-                <td className="hidden px-6 py-4 text-sm text-sanctum-muted sm:table-cell">
-                  {team.description || "\u2014"}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Tooltip label="View members">
-                      <Link
-                        href={`/teams/${team.id}`}
-                        className="icon-btn"
-                        aria-label="View members"
-                      >
-                        <i className="fa-solid fa-user" aria-hidden />
-                      </Link>
-                    </Tooltip>
-                    <Tooltip label="Edit team">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(team)}
-                        className="icon-btn"
-                        aria-label="Edit team"
-                      >
-                        <i className="fa-solid fa-pencil" aria-hidden />
-                      </button>
-                    </Tooltip>
-                    <Tooltip label="Delete team">
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(team.id)}
-                        className="icon-btn-danger"
-                        aria-label="Delete team"
-                      >
-                        <i className="fa-solid fa-trash" aria-hidden />
-                      </button>
-                    </Tooltip>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {teams.length === 0 && (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-6 py-8 text-center text-sanctum-muted"
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {teams.map((team) => (
+          <div key={team.id} className="sanctum-card p-5">
+            <div className="mb-4 flex items-start justify-between gap-2">
+              <div>
+                <h2 className="font-display text-lg font-bold text-sanctum-mist">
+                  {team.name}
+                </h2>
+                <p className="font-mono text-[11px] text-sanctum-muted">
+                  {team.member_count ?? 0} members
+                </p>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => openEdit(team)}
+                  className="icon-btn"
+                  aria-label="Edit team"
                 >
-                  No teams yet
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        </div>
+                  <i className="fa-solid fa-pen" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(team.id)}
+                  className="icon-btn-danger"
+                  aria-label="Delete team"
+                >
+                  <i className="fa-solid fa-trash" aria-hidden />
+                </button>
+              </div>
+            </div>
+            {team.description ? (
+              <p className="mb-4 line-clamp-2 text-sm text-sanctum-muted">
+                {team.description}
+              </p>
+            ) : null}
+            <div className="mb-4 flex -space-x-2">
+              <MemberAvatar name={team.name} username={team.name} size="sm" />
+            </div>
+            <Link
+              href={`/teams/${team.id}`}
+              className="text-sm font-semibold text-sanctum-accent hover:text-sanctum-mist"
+            >
+              Manage team →
+            </Link>
+          </div>
+        ))}
+        {teams.length === 0 ? (
+          <p className="col-span-full py-8 text-center text-sanctum-muted">
+            No teams yet
+          </p>
+        ) : null}
       </div>
 
       <Modal

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import BrandMark from "@/components/BrandMark";
 import { requestPasswordReset } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -26,18 +27,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0b1220] to-[#020617]" />
-
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="mb-8 flex items-center justify-center gap-2">
-          <Link
-            href="/"
-            className="font-logo text-2xl font-normal tracking-[0.25em] text-sanctum-mist hover:text-white"
-          >
-            SANCTUM
-          </Link>
-          <i className="fa-solid fa-key text-sanctum-accent text-lg" aria-hidden />
+    <div className="flex min-h-screen items-center justify-center bg-sanctum-bg px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex justify-center">
+          <BrandMark href="/" />
         </div>
         <div className="sanctum-card space-y-4 p-8">
           <h1 className="text-lg font-semibold text-sanctum-mist">

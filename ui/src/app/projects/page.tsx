@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import PageHeader from "@/components/PageHeader";
+import StatusDot from "@/components/StatusDot";
 import {
   apiFetch,
   getApiBase,
@@ -157,20 +159,19 @@ export default function ProjectsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-sanctum-mist">Projects</h1>
-        <div className="flex items-center gap-3">
-          <ViewToggle mode={viewMode} onChange={setViewMode} />
-          <button
-            type="button"
-            onClick={openCreate}
-            className="btn-primary"
-          >
-            <i className="fa-solid fa-circle-plus" aria-hidden />
-            New Project
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Projects"
+        subtitle="Environments grouped by client or product."
+        actions={
+          <>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
+            <button type="button" onClick={openCreate} className="btn-primary">
+              <i className="fa-solid fa-circle-plus" aria-hidden />
+              New Project
+            </button>
+          </>
+        }
+      />
 
       {viewMode === "tiles" ? (
         <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -179,7 +180,7 @@ export default function ProjectsPage() {
               <div className="mb-2 flex items-start justify-between gap-2">
                 <Link
                   href={`/projects/${p.id}`}
-                  className="flex min-w-0 items-center gap-2 text-lg font-semibold text-sanctum-mist hover:text-sanctum-accent"
+                  className="flex min-w-0 items-center gap-2 text-lg font-semibold text-sanctum-project hover:text-sanctum-accent"
                 >
                   <ProjectTitleWithStatusDot
                     name={p.name}

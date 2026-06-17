@@ -2,25 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import BrandMark from "@/components/BrandMark";
 import { logout } from "@/lib/api";
 import { isPublicRoute } from "@/lib/routes";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Tooltip from "@/components/Tooltip";
 
-const BASE_NAV: {
-  href: string;
-  label: string;
-  icon: string;
-}[] = [
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: "fa-solid fa-gauge-simple-high",
-  },
-  { href: "/projects", label: "Projects", icon: "fa-solid fa-diagram-project" },
-  { href: "/teams", label: "Teams", icon: "fa-solid fa-users-between-lines" },
-  { href: "/members", label: "Members", icon: "fa-solid fa-user" },
+const BASE_NAV: { href: string; label: string; glyph: string }[] = [
+  { href: "/dashboard", label: "Dashboard", glyph: "▦" },
+  { href: "/projects", label: "Projects", glyph: "◆" },
+  { href: "/teams", label: "Teams", glyph: "⦿" },
+  { href: "/members", label: "Members", glyph: "⊹" },
 ];
 
 export default function Sidebar() {
@@ -30,46 +23,39 @@ export default function Sidebar() {
 
   if (isPublicRoute(pathname)) return null;
 
-  const nav =
-    (workspace?.role ?? "owner") === "owner"
-      ? [
-          ...BASE_NAV,
-          {
-            href: "/admins",
-            label: "Admins",
-            icon: "fa-solid fa-user-shield",
-          },
-        ]
-      : BASE_NAV;
+  const isOwner = (workspace?.role ?? "owner") === "owner";
+  const nav = isOwner
+    ? [...BASE_NAV, { href: "/admins", label: "Admins", glyph: "⚿" }]
+    : BASE_NAV;
+
+  const navClass = (active: boolean) =>
+    active ? "nav-item nav-item-active" : "nav-item hover:bg-white/5 hover:text-sanctum-mist";
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-sanctum-line/20 bg-[#182a35] transition-[width] duration-200 md:flex ${
-        collapsed ? "w-16" : "w-60"
+      className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-sanctum-line bg-sanctum-surface transition-[width] duration-200 md:flex ${
+        collapsed ? "w-16" : "w-[248px]"
       }`}
     >
-      <div className="flex h-16 items-center justify-center gap-2 border-b border-sanctum-line/15 px-2">
+      <div className="border-b border-sanctum-line px-4 py-5">
         {collapsed ? (
-          <Link
-            href="/dashboard"
-            className="text-sanctum-accent hover:text-white"
-          >
-            <i className="fa-solid fa-key text-base" aria-hidden />
+          <Link href="/dashboard" className="flex justify-center">
+            <BrandMark size="sm" showWordmark={false} />
           </Link>
         ) : (
-          <Link
+          <BrandMark
             href="/dashboard"
-            className="font-logo text-lg font-normal tracking-[0.2em] text-sanctum-mist hover:text-white"
-          >
-            SANCTUM
-          </Link>
-        )}
-        {!collapsed && (
-          <i className="fa-solid fa-key text-sanctum-accent text-sm" aria-hidden />
+            size="sm"
+            subtitle={workspace?.name}
+          />
         )}
       </div>
 
-      <nav className={`flex-1 space-y-0.5 px-2 py-4 ${collapsed ? "overflow-visible" : "overflow-y-auto"}`}>
+      <nav
+        className={`flex-1 space-y-0.5 px-3 py-3 ${
+          collapsed ? "overflow-visible" : "overflow-y-auto"
+        }`}
+      >
         {nav.map((item) => {
           const active =
             item.href === "/dashboard"
@@ -79,39 +65,52 @@ export default function Sidebar() {
             <Tooltip key={item.href} label={item.label} side="right">
               <Link
                 href={item.href}
-                className={`flex items-center justify-center rounded-md p-2.5 transition-colors ${
-                  active
-                    ? "bg-sanctum-accent/25 text-sanctum-mist shadow-inner"
-                    : "text-sanctum-muted hover:bg-white/5 hover:text-sanctum-mist"
-                }`}
+                className={`flex justify-center rounded-sanctum-sm p-2.5 font-mono text-sm ${navClass(active)}`}
               >
-                <i className={`${item.icon} text-[0.95rem]`} aria-hidden />
+                {item.glyph}
               </Link>
             </Tooltip>
           ) : (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-sanctum-accent/25 text-sanctum-mist shadow-inner"
-                  : "text-sanctum-muted hover:bg-white/5 hover:text-sanctum-mist"
-              }`}
+              className={navClass(active)}
             >
-              <i className={`${item.icon} w-5 text-center text-[0.95rem]`} aria-hidden />
+              <span className="w-[18px] text-center font-mono text-[13px]">
+                {item.glyph}
+              </span>
               {item.label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-sanctum-line/15 p-2">
+      {!collapsed && isOwner && workspace ? (
+        <div className="mx-3 mb-2 rounded-[11px] border border-sanctum-line bg-sanctum-raised p-3.5">
+          <div className="mb-1 text-xs font-semibold text-sanctum-mist">
+            Environments
+          </div>
+          <div className="font-mono text-xs text-sanctum-muted">
+            {workspace.environment_limit != null
+              ? `${workspace.environment_count} / ${workspace.environment_limit}`
+              : `${workspace.environment_count} (unlimited)`}
+          </div>
+          <Link
+            href="/dashboard"
+            className="mt-2 block text-xs font-semibold text-sanctum-accent hover:text-sanctum-mist"
+          >
+            Billing &amp; usage →
+          </Link>
+        </div>
+      ) : null}
+
+      <div className="border-t border-sanctum-line p-2">
         {collapsed ? (
           <Tooltip label="Sign out" side="right">
             <button
               type="button"
               onClick={logout}
-              className="flex w-full items-center justify-center rounded-md p-2.5 text-sanctum-muted transition-colors hover:bg-white/5 hover:text-sanctum-mist"
+              className="flex w-full justify-center rounded-sanctum-sm p-2.5 text-sanctum-muted hover:bg-white/5 hover:text-sanctum-mist"
             >
               <i className="fa-solid fa-right-from-bracket" aria-hidden />
             </button>
@@ -120,20 +119,23 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={logout}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-sanctum-muted transition-colors hover:bg-white/5 hover:text-sanctum-mist"
+            className="nav-item w-full text-left"
           >
-            <i className="fa-solid fa-right-from-bracket w-5 text-center" aria-hidden />
+            <i className="fa-solid fa-right-from-bracket w-[18px] text-center" aria-hidden />
             Sign out
           </button>
         )}
       </div>
 
-      <div className="border-t border-sanctum-line/15 p-2">
-        <Tooltip label={collapsed ? "Expand sidebar" : "Collapse sidebar"} side="right">
+      <div className="border-t border-sanctum-line p-2">
+        <Tooltip
+          label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          side="right"
+        >
           <button
             type="button"
             onClick={toggle}
-            className="flex w-full items-center justify-center rounded-md p-2 text-sanctum-muted transition-colors hover:bg-white/5 hover:text-sanctum-mist"
+            className="flex w-full justify-center rounded-sanctum-sm p-2 text-sanctum-muted hover:bg-white/5 hover:text-sanctum-mist"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <i

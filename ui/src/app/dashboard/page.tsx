@@ -16,6 +16,10 @@ import {
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { HeartbeatRhythm } from "@/components/HeartbeatRhythm";
+import PageHeader from "@/components/PageHeader";
+import MetricCard from "@/components/MetricCard";
+import UsageMeter from "@/components/UsageMeter";
+import StatusDot from "@/components/StatusDot";
 import type { HeartbeatRhythmStatus } from "@/lib/api";
 
 const PAGE_SIZE_OPTIONS = [8, 15, 25, 50] as const;
@@ -24,13 +28,12 @@ const DEFAULT_PAGE_SIZE = 8;
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "";
 
 const STAT_CARDS = [
-  { key: "projects" as const, label: "Projects", dot: "bg-sanctum-accent", href: "/projects" },
-  { key: "members" as const, label: "Members", dot: "bg-success", href: "/members" },
+  { key: "projects" as const, label: "Projects", href: "/projects" },
+  { key: "members" as const, label: "Members", href: "/members" },
   {
     key: "servers_online" as const,
     label: "Servers online",
-    dot: "bg-warning",
-    href: null,
+    href: null as string | null,
   },
 ];
 
@@ -44,14 +47,6 @@ function formatUptime(seconds: number): string {
   if (h > 0) return `${h}h ${m}m`;
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
-
-function heartbeatDotClass(h: HealthStatus["heartbeat_freshness"]): string {
-  const { total_servers, online } = h;
-  if (total_servers === 0) return "bg-sanctum-muted";
-  if (online === total_servers) return "bg-success";
-  if (online > 0) return "bg-warning";
-  return "bg-red-500";
 }
 
 function formatHeartbeatAgo(seconds: number | null | undefined): string {
@@ -140,16 +135,6 @@ export default function DashboardPage() {
     }
   }, [wsLoading, loadBilling]);
 
-  const envLabel = () => {
-    if (!workspace) return null;
-    const n = workspace.environment_count;
-    const lim = billing?.environment_limit ?? workspace.environment_limit;
-    if (lim === null) {
-      return `${n} (unlimited)`;
-    }
-    return `${n} / ${lim}`;
-  };
-
   const handleUpgrade = async () => {
     setBillingAction(true);
     try {
@@ -173,28 +158,25 @@ export default function DashboardPage() {
   const isOwner = (workspace?.role ?? "owner") === "owner";
   const showHostedBilling = isOwner && billing !== null;
 
+  const envLimit =
+    billing?.environment_limit ?? workspace?.environment_limit ?? null;
+  const envCount = workspace?.environment_count ?? 0;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <h1 className="mb-6 text-2xl font-bold text-sanctum-mist">Dashboard</h1>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Workspace operations at a glance."
+      />
 
-      {workspace && (
-        <div className="sanctum-card mb-6 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-sanctum-muted">Environments</p>
-            <p className="text-lg font-semibold tabular-nums text-sanctum-mist">
-              {envLabel()}
-              {showHostedBilling && billing.plan === "pro" ? (
-                <span className="ml-2 text-sm font-normal text-success">
-                  Pro
-                </span>
-              ) : null}
-            </p>
-            {workspace.deployment_mode === "self_hosted" && !showHostedBilling ? (
-              <p className="mt-1 text-xs text-sanctum-muted">
-                Self-hosted — no environment cap.
-              </p>
-            ) : null}
-          </div>
+      {workspace ? (
+        <div className="sanctum-card mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <UsageMeter
+            label="Environments"
+            current={envCount}
+            limit={envLimit}
+            showUpgradeHint={showHostedBilling && billing?.plan === "free"}
+          />
           {showHostedBilling ? (
             <div className="flex flex-wrap gap-2">
               {billing.plan === "free" ? (
@@ -202,11 +184,13 @@ export default function DashboardPage() {
                   type="button"
                   disabled={billingAction}
                   onClick={() => void handleUpgrade()}
-                  className="btn-primary text-sm"
+                  className="btn-primary whitespace-nowrap text-sm"
                 >
-                  {billingAction ? "Redirecting…" : "Upgrade to Pro ($20/mo)"}
+                  {billingAction ? "Redirecting…" : "Upgrade to Pro →"}
                 </button>
-              ) : null}
+              ) : (
+                <span className="status-pill-success">Pro</span>
+              )}
               {billing.has_stripe_customer ? (
                 <button
                   type="button"
@@ -218,91 +202,92 @@ export default function DashboardPage() {
                 </button>
               ) : null}
             </div>
+          ) : workspace.deployment_mode === "self_hosted" ? (
+            <p className="text-xs text-sanctum-muted">
+              Self-hosted — no environment cap.
+            </p>
           ) : null}
-        </div>
-      )}
-
-      {health ? (
-        <div className="sanctum-card mb-6 flex flex-wrap items-center gap-3 p-4 text-sm">
-          <span className="text-sanctum-muted">System</span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-success" />
-            <span className="text-sanctum-muted">API</span>
-            <span className="text-sanctum-mist">Online</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                health.database ? "bg-success" : "bg-red-500"
-              }`}
-            />
-            <span className="text-sanctum-muted">Database</span>
-            <span className="text-sanctum-mist">
-              {health.database ? "Connected" : "Down"}
-            </span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
-            <span className="text-sanctum-muted">Worker uptime</span>
-            <span className="tabular-nums text-sanctum-mist">
-              {formatUptime(health.uptime_seconds)}
-            </span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-sanctum-line/20 bg-sanctum-bg/40 px-2.5 py-1">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${heartbeatDotClass(
-                health.heartbeat_freshness
-              )}`}
-            />
-            <span className="text-sanctum-muted">Heartbeats</span>
-            <span className="tabular-nums text-sanctum-mist">
-              {health.heartbeat_freshness.total_servers === 0
-                ? "No servers yet"
-                : `${health.heartbeat_freshness.online}/${health.heartbeat_freshness.total_servers} online`}
-            </span>
-          </span>
         </div>
       ) : null}
 
-      <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {STAT_CARDS.map((card) => (
-          <div key={card.key} className="sanctum-card relative p-5">
-            <div className="mb-1 flex items-center gap-2">
-              <span className={`inline-block h-2.5 w-2.5 rounded-full ${card.dot}`} />
-              <span className="text-sm text-sanctum-muted">{card.label}</span>
+      {health ? (
+        <div className="sanctum-card mb-6 p-5">
+          <div className="label-caps mb-4">System health</div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-center gap-2.5">
+              <StatusDot variant="success" label="API online" />
+              <div>
+                <div className="text-sm font-semibold">API online</div>
+                <div className="text-xs text-sanctum-muted">Responding</div>
+              </div>
             </div>
-            <p className="text-3xl font-bold tabular-nums text-sanctum-mist">
-              {stats ? stats[card.key] : "\u2014"}
-            </p>
-            {card.href && (
-              <Link
-                href={card.href}
-                className="absolute right-4 top-4 text-sanctum-muted transition-colors hover:text-sanctum-mist"
-                aria-label={`Open ${card.label}`}
-              >
-                <i className="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden />
-              </Link>
-            )}
+            <div className="flex items-center gap-2.5">
+              <StatusDot
+                variant={health.database ? "success" : "danger"}
+                label="Database"
+              />
+              <div>
+                <div className="text-sm font-semibold">Database</div>
+                <div className="text-xs text-sanctum-muted">
+                  {health.database ? "Connected" : "Down"}
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Worker uptime</div>
+              <div className="font-mono text-xs text-sanctum-muted">
+                {formatUptime(health.uptime_seconds)}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Heartbeats</div>
+              <div className="font-mono text-xs text-sanctum-muted">
+                {health.heartbeat_freshness.total_servers === 0
+                  ? "No servers yet"
+                  : `${health.heartbeat_freshness.online}/${health.heartbeat_freshness.total_servers} online`}
+              </div>
+            </div>
           </div>
+        </div>
+      ) : null}
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {STAT_CARDS.map((card) => (
+          <MetricCard
+            key={card.key}
+            label={card.label}
+            value={stats ? stats[card.key] : "—"}
+            href={card.href ?? undefined}
+          />
         ))}
       </div>
 
-      <div className="sanctum-card p-6">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-sanctum-mist">
-            Active Connections
+      <div className="sanctum-card overflow-hidden p-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sanctum-line px-5 py-4">
+          <h2 className="font-display text-base font-bold text-sanctum-mist">
+            Active connections
           </h2>
-          {activeConnections.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-sanctum-muted tabular-nums">
-                {activeConnections.length} total
-              </span>
+          <span className="font-mono text-[11px] text-sanctum-muted">
+            last 60 min · 5min buckets
+          </span>
+        </div>
+        <div className="px-5 pb-5">
+          <p className="mb-4 text-xs text-sanctum-muted">
+            Rhythm shows the last hour in 5-minute buckets. Check{" "}
+            <code className="rounded bg-sanctum-terminal px-1 font-mono text-sanctum-mist">
+              /etc/cron.d/sanctum
+            </code>{" "}
+            if a host stays stale.
+          </p>
+          {activeConnections.length > 0 ? (
+            <div className="mb-3 flex justify-end">
               <select
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setConnectionsPage(0);
                 }}
-                className="sanctum-select text-xs py-1 px-1.5"
+                className="sanctum-select px-1.5 py-1 text-xs"
                 aria-label="Rows per page"
               >
                 {PAGE_SIZE_OPTIONS.map((n) => (
@@ -312,17 +297,7 @@ export default function DashboardPage() {
                 ))}
               </select>
             </div>
-          )}
-        </div>
-        <p className="mb-4 text-xs text-sanctum-muted">
-          Rhythm shows the last hour in 5-minute buckets (filled = heartbeat seen
-          in that window). A server counts as online when its last heartbeat is
-          within about 10 minutes. If a host never appears or stays stale, check{" "}
-          <code className="rounded bg-sanctum-line/15 px-1 text-sanctum-mist">
-            /etc/cron.d/sanctum
-          </code>
-          , the provision token, and DNS reachability to the API on 443.
-        </p>
+          ) : null}
         {servers === null ? (
           <p className="text-sm text-sanctum-muted">Loading…</p>
         ) : activeConnections.length === 0 ? (
@@ -401,6 +376,7 @@ export default function DashboardPage() {
             )}
           </>
         )}
+        </div>
       </div>
 
       {DONATION_URL ? (

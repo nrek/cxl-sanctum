@@ -1,180 +1,86 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import PricingMatrix from "@/components/PricingMatrix";
-import { login } from "@/lib/api";
-
-const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL || "";
+import BrandMark from "@/components/BrandMark";
 
 export default function HomePage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await login(username, password);
-      router.push("/dashboard");
-    } catch {
-      setError("Invalid username or password");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-sanctum-bg">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(45,212,191,0.25),transparent_55%),radial-gradient(ellipse_80%_60%_at_100%_50%,rgba(99,102,241,0.18),transparent_50%),radial-gradient(ellipse_60%_50%_at_0%_80%,rgba(236,72,153,0.12),transparent_45%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(620px_380px_at_88%_-8%,rgba(217,92,34,0.12),transparent_60%)]"
         aria-hidden
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0b1220] via-[#0f172a]/95 to-[#020617]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-stretch justify-center gap-12 lg:flex-row lg:items-center lg:gap-16">
-        <div className="mb-0 max-w-xl lg:mb-0">
-          <div className="mb-8 flex items-center gap-3">
-            <span className="font-logo text-3xl font-normal tracking-[0.28em] text-white drop-shadow-sm sm:text-4xl">
-              SANCTUM
-            </span>
-            <i
-              className="fa-solid fa-key text-2xl text-teal-300/90 sm:text-3xl"
-              aria-hidden
-            />
-          </div>
-          <p className="mb-4 text-lg leading-relaxed text-slate-300/95 sm:text-xl">
-            Secure SSH access orchestration for your teams and environments:
-            distribute keys, manage assignments, and keep servers converged with
-            what you define here.
+      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-6 py-6">
+        <BrandMark href="/" size="md" />
+        <div className="flex items-center gap-3 text-sm">
+          <Link href="/login" className="text-sanctum-muted hover:text-sanctum-mist">
+            Sign in
+          </Link>
+          <Link href="/register" className="btn-primary px-4 py-2 text-sm">
+            Register
+          </Link>
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto max-w-4xl px-6 py-16">
+        <p className="label-caps mb-4">SSH access management</p>
+        <h1 className="mb-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-sanctum-mist md:text-5xl">
+          One dashboard for keys, teams, and server access.
+        </h1>
+        <p className="mb-8 max-w-2xl text-lg leading-relaxed text-sanctum-muted">
+          Sanctum distributes SSH keys and sudo membership to your servers through
+          a pull-based provision script. Define users and environments here; each
+          host converges on cron with a single cURL line. No agent required.
+        </p>
+
+        <div className="mb-12 flex flex-wrap gap-3">
+          <Link href="/login" className="btn-primary">
+            Open dashboard
+          </Link>
+          <Link href="/register" className="btn-secondary">
+            Create workspace
+          </Link>
+        </div>
+
+        <div className="sanctum-card space-y-4 p-6">
+          <h2 className="font-display text-lg font-bold text-sanctum-mist">
+            Self-hosted setup
+          </h2>
+          <p className="text-sm leading-relaxed text-sanctum-muted">
+            Point this UI at your API by setting{" "}
+            <code className="rounded bg-sanctum-terminal px-1.5 py-0.5 font-mono text-xs text-sanctum-mist">
+              NEXT_PUBLIC_API_URL
+            </code>{" "}
+            at build time (must include the <code className="font-mono text-xs">/api</code>{" "}
+            path). Run the Django API from{" "}
+            <code className="font-mono text-xs">cxl-sanctum/server</code> or use the
+            hosted SaaS API. See the project README for provision cron examples.
           </p>
-          <p className="mb-6 text-sm leading-relaxed text-slate-400">
-            Each account gets its own isolated workspace-projects, teams, members,
-            and environments stay separate from everyone else&apos;s data.
-          </p>
-          <p className="text-sm text-slate-500">
-            Built by{" "}
+          <p className="text-sm text-sanctum-faint">
+            Looking for the Craft/Logic hosted offering? Visit{" "}
             <a
-              href="https://craftxlogic.com"
+              href="https://sanctum.craftxlogic.com"
+              className="link-accent"
               target="_blank"
               rel="noopener noreferrer"
-              className="link-accent font-medium text-teal-300/95"
             >
-              Craft/Logic&nbsp;
+              sanctum.craftxlogic.com
             </a>
-            - product engineering for flexible infrastructure.
+            .
           </p>
         </div>
+      </main>
 
-        <div className="w-full max-w-md shrink-0">
-          <div className="sanctum-card border-white/10 bg-slate-900/70 p-8 shadow-2xl backdrop-blur-md">
-            <h2 className="mb-1 text-lg font-semibold text-sanctum-mist">
-              Sign in
-            </h2>
-            <p className="mb-5 text-sm text-sanctum-muted">
-              Welcome back. Sessions use a per-login token so switching accounts
-              always starts fresh.
-            </p>
-            <form onSubmit={handleLogin} className="space-y-4">
-              {error && (
-                <div
-                  className="rounded-md border border-danger/40 bg-danger-surface px-4 py-2 text-sm text-danger"
-                  role="alert"
-                >
-                  {error}
-                </div>
-              )}
-              <div>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoComplete="username"
-                  placeholder="Username"
-                  aria-label="Username"
-                  className="sanctum-input"
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  placeholder="Password"
-                  aria-label="Password"
-                  className="sanctum-input"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full"
-              >
-                {loading ? "Signing in..." : "Sign in"}
-              </button>
-            </form>
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <Link href="/forgot-password" className="link-accent">
-                Forgot password?
-              </Link>
-              <Link href="/register" className="link-accent">
-                Create an account
-              </Link>
-            </div>
-          </div>
-        </div>
-        </div>
-
-        <div className="flex flex-col items-center border-t border-white/5 pt-12">
-          <PricingMatrix />
-          {DONATION_URL ? (
-            <p className="mt-8 max-w-md text-center text-xs text-slate-500">
-              Enjoying SANCTUM?{" "}
-              <a
-                href={DONATION_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="link-accent"
-              >
-                Support the project
-              </a>{" "}
-              (optional).
-            </p>
-          ) : null}
-        </div>
-
-        <footer className="mt-16 flex flex-col items-center gap-2 border-t border-white/5 pt-8 text-center text-xs text-slate-500">
-          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-            <Link href="/privacy" className="link-accent">
-              Privacy Policy
-            </Link>
-            <span aria-hidden>·</span>
-            <Link href="/terms" className="link-accent">
-              Terms of Use
-            </Link>
-            <span aria-hidden>·</span>
-            <a
-              href="mailto:support@craftxlogic.com"
-              className="link-accent"
-            >
-              support@craftxlogic.com
-            </a>
-          </nav>
-          <p>
-            &copy; {new Date().getFullYear()} Craft and Logic, Inc. — 1321
-            Upland Dr., PMB 20350, Houston, Texas 77043, US
-          </p>
-        </footer>
-      </div>
+      <footer className="relative z-10 mx-auto mt-16 flex max-w-4xl flex-wrap items-center gap-4 border-t border-sanctum-line px-6 py-8 text-xs text-sanctum-faint">
+        <Link href="/privacy" className="link-accent">
+          Privacy
+        </Link>
+        <span aria-hidden>·</span>
+        <Link href="/terms" className="link-accent">
+          Terms
+        </Link>
+      </footer>
     </div>
   );
 }

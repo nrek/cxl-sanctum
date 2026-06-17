@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-sanctum-ink text-sanctum-mist antialiased;
+    @apply bg-sanctum-bg text-sanctum-mist antialiased;
   }
 }
 
@@ -18,31 +18,31 @@
 
 @layer components {
   .sanctum-card {
-    @apply rounded-lg border border-sanctum-line/20 bg-sanctum-surface shadow-lg;
+    @apply rounded-sanctum border border-sanctum-line bg-sanctum-raised shadow-lg;
   }
 
   .sanctum-input {
-    @apply w-full rounded-md border border-sanctum-line/25 bg-sanctum-surface2 px-3 py-2 text-sanctum-mist placeholder:text-sanctum-muted focus:border-sanctum-accent/50 focus:outline-none focus:ring-2 focus:ring-sanctum-accent/35;
+    @apply w-full rounded-sanctum-sm border border-sanctum-line-strong bg-sanctum-surface px-3 py-2.5 text-sanctum-mist placeholder:text-sanctum-muted focus:border-sanctum-accent/50 focus:outline-none focus:ring-2 focus:ring-sanctum-accent/35;
   }
 
   .sanctum-select {
-    @apply rounded-md border border-sanctum-line/25 bg-sanctum-surface2 px-2 py-1.5 text-sm text-sanctum-mist focus:border-sanctum-accent/50 focus:outline-none focus:ring-2 focus:ring-sanctum-accent/35;
+    @apply rounded-sanctum-sm border border-sanctum-line-strong bg-sanctum-surface px-2 py-1.5 text-sm text-sanctum-mist focus:border-sanctum-accent/50 focus:outline-none focus:ring-2 focus:ring-sanctum-accent/35;
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-md bg-sanctum-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:brightness-110 disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-sanctum-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sanctum-accent transition-colors hover:bg-sanctum-accent-dark disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-sanctum-line/35 bg-sanctum-surface2 px-4 py-2 text-sm font-medium text-sanctum-mist transition-colors hover:bg-sanctum-surface hover:border-sanctum-line/50;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-sanctum-line-strong bg-transparent px-5 py-2.5 text-sm font-semibold text-sanctum-mist transition-colors hover:border-sanctum-muted hover:bg-white/5;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sanctum-muted transition-colors hover:bg-white/5 hover:text-sanctum-mist;
+    @apply inline-flex items-center justify-center gap-2 rounded-sanctum-sm px-3 py-2 text-sm font-medium text-sanctum-muted transition-colors hover:bg-white/5 hover:text-sanctum-mist;
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-md bg-danger/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-danger disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-sanctum-sm bg-danger/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-danger disabled:opacity-50;
   }
 
   .link-accent {
@@ -50,10 +50,46 @@
   }
 
   .icon-btn {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-md text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-sanctum-accent/50;
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-sanctum-sm text-sanctum-muted transition-colors hover:bg-white/10 hover:text-sanctum-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-sanctum-accent/50;
   }
 
   .icon-btn-danger {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger/15 hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/40;
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-sanctum-sm text-danger transition-colors hover:bg-danger/15 hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/40;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 rounded-sanctum-sm px-3.5 py-2.5 text-sm font-medium text-sanctum-muted transition-colors;
+  }
+
+  .nav-item-active {
+    @apply bg-sanctum-accent-soft text-sanctum-mist;
+  }
+
+  .label-caps {
+    @apply font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-sanctum-muted;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold;
+  }
+
+  .status-pill-success {
+    @apply status-pill bg-success-surface text-success;
+  }
+
+  .status-pill-danger {
+    @apply status-pill bg-danger-surface text-danger;
+  }
+
+  .role-pill-sudo {
+    @apply inline-flex items-center rounded-md border border-sanctum-accent/35 bg-sanctum-accent-soft px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-sanctum-accent;
+  }
+
+  .role-pill-user {
+    @apply inline-flex items-center rounded-md border border-sanctum-teal/30 bg-sanctum-teal/10 px-2.5 py-1 font-mono text-[10.5px] font-semibold uppercase tracking-wide text-sanctum-teal;
+  }
+
+  .code-panel {
+    @apply rounded-sanctum-sm border border-sanctum-line bg-sanctum-terminal p-3.5 font-mono text-xs leading-relaxed text-sanctum-mist;
   }
 }

@@ -17,6 +17,7 @@ import ProvisionSnippets from "@/components/ProvisionSnippets";
 import ServerInventory from "@/components/ServerInventory";
 import SupplementalGroupsEditor from "@/components/SupplementalGroupsEditor";
 import Modal from "@/components/Modal";
+import PageHeader from "@/components/PageHeader";
 import Tooltip from "@/components/Tooltip";
 
 type RoleOpt = "" | "user" | "sudo" | "removed";
@@ -367,26 +368,20 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="mb-2 text-2xl font-bold text-sanctum-project">
-            {project.name}
-          </h1>
-          <p className="text-sanctum-muted">
-            {project.description || (
-              <span className="italic text-sanctum-muted/80">No description</span>
-            )}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={openEditProject}
-          className="btn-secondary shrink-0 text-sm"
-        >
-          <i className="fa-solid fa-pen mr-1.5" aria-hidden />
-          Edit project
-        </button>
-      </div>
+      <PageHeader
+        title={project.name}
+        subtitle={project.description || "No description"}
+        actions={
+          <button
+            type="button"
+            onClick={openEditProject}
+            className="btn-secondary shrink-0 text-sm"
+          >
+            <i className="fa-solid fa-pen mr-1.5" aria-hidden />
+            Edit project
+          </button>
+        }
+      />
       <p className="mb-6 text-sm text-sanctum-muted">
         Assign <strong className="text-sanctum-mist">teams</strong> (groups of
         users) or <strong className="text-sanctum-mist">users</strong>{" "}

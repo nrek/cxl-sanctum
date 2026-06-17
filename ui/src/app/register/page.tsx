@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import BrandMark from "@/components/BrandMark";
 import { registerAccount } from "@/lib/api";
 
 export default function RegisterPage() {
@@ -35,97 +36,73 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_80%_at_50%_-10%,rgba(45,212,191,0.2),transparent_50%)]"
-        aria-hidden
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0b1220] to-[#020617]" />
-
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="mb-8 flex items-center justify-center gap-2">
-          <Link
-            href="/"
-            className="font-logo text-2xl font-normal tracking-[0.25em] text-sanctum-mist hover:text-white"
-          >
-            SANCTUM
-          </Link>
-          <i className="fa-solid fa-key text-sanctum-accent text-lg" aria-hidden />
+    <div className="flex min-h-screen items-center justify-center bg-sanctum-bg px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex justify-center">
+          <BrandMark href="/" size="lg" />
         </div>
         <div className="sanctum-card space-y-4 p-8">
-          <h1 className="text-lg font-semibold text-sanctum-mist">
+          <h1 className="font-display text-lg font-bold text-sanctum-mist">
             Create your workspace
           </h1>
           <p className="text-sm text-sanctum-muted">
-            Get started with SANCTUM by creating your admin account for your own projects, teams, and environments.
+            Admin account for projects, teams, members, and environments.
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+            {error ? (
               <div
-                className="rounded-md border border-danger/40 bg-danger-surface px-4 py-2 text-sm text-danger"
+                className="rounded-sanctum-sm border border-danger/40 bg-danger-surface px-4 py-2 text-sm text-danger"
                 role="alert"
               >
                 {error}
               </div>
-            )}
-            <div>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-                placeholder="Username"
-                aria-label="Username"
-                className="sanctum-input"
-              />
-            </div>
-            <div>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                placeholder="Email (optional)"
-                aria-label="Email (optional)"
-                className="sanctum-input"
-              />
-            </div>
-            <div>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                placeholder="Password"
-                aria-label="Password"
-                className="sanctum-input"
-              />
-            </div>
-            <div>
-              <input
-                type="password"
-                value={password2}
-                onChange={(e) => setPassword2(e.target.value)}
-                required
-                autoComplete="new-password"
-                placeholder="Confirm password"
-                aria-label="Confirm password"
-                className="sanctum-input"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full"
-            >
-              {loading ? "Creating account..." : "Register"}
+            ) : null}
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoComplete="username"
+              placeholder="Username"
+              aria-label="Username"
+              className="sanctum-input font-mono text-sm"
+            />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="Email (optional)"
+              aria-label="Email (optional)"
+              className="sanctum-input"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              placeholder="Password"
+              aria-label="Password"
+              className="sanctum-input"
+            />
+            <input
+              type="password"
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
+              required
+              autoComplete="new-password"
+              placeholder="Confirm password"
+              aria-label="Confirm password"
+              className="sanctum-input"
+            />
+            <button type="submit" disabled={loading} className="btn-primary w-full">
+              {loading ? "Creating…" : "Create workspace →"}
             </button>
             <p className="text-center text-xs leading-relaxed text-sanctum-muted">
-              By creating an account, you agree to the{" "}
+              By registering you agree to the{" "}
               <Link href="/terms" className="link-accent">
-                Terms of Use
+                Terms
               </Link>{" "}
               and{" "}
               <Link href="/privacy" className="link-accent">
@@ -135,7 +112,7 @@ export default function RegisterPage() {
             </p>
           </form>
           <p className="text-center text-sm text-sanctum-muted">
-            Already have an account?{" "}
+            Already have a workspace?{" "}
             <Link href="/login" className="link-accent">
               Sign in
             </Link>
