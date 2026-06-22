@@ -9,6 +9,7 @@ router.register(r"members", views.MemberViewSet, basename="member")
 router.register(r"server-groups", views.ServerGroupViewSet, basename="servergroup")
 router.register(r"servers", views.ServerViewSet, basename="server")
 router.register(r"assignments", views.AssignmentViewSet, basename="assignment")
+router.register(r"access-requests", views.AccessRequestViewSet, basename="accessrequest")
 router.register(
     r"workspace-admins",
     views.WorkspaceAdminViewSet,

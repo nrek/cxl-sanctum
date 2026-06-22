@@ -12,6 +12,8 @@ from .models import (
     Server,
     ServerHeartbeatLog,
     Assignment,
+    WorkspaceAdmin,
+    AccessRequest,
 )
 from .provision import generate_provision_script
 from .linux_groups import (
@@ -298,6 +300,285 @@ class APITests(TestCase):
         self.token = Token.objects.create(user=self.user)
         self.client = APIClient()
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _member_client(self, username="member", email="member@example.com"):
+        member_user = User(username=username, email=email)
+        member_user._skip_workspace_creation = True
+        member_user.set_password("member-pass")
+        member_user.save()
+        member = Member.objects.create(
+            username=username,
+            email=email,
+            workspace=self.ws,
+            user=member_user,
+        )
+        token = Token.objects.create(user=member_user)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        return member, client
+
+    def test_member_role_summary_and_scoped_read_access(self):
+        member, member_client = self._member_client("amara", "amara@example.com")
+        visible = Project.objects.create(
+            name="Visible",
+            workspace=self.ws,
+            tags=["client", "web"],
+        )
+        hidden = Project.objects.create(name="Hidden", workspace=self.ws)
+        visible_env = ServerGroup.objects.create(
+            project=visible,
+            workspace=self.ws,
+            name="Production",
+        )
+        hidden_env = ServerGroup.objects.create(
+            project=hidden,
+            workspace=self.ws,
+            name="Production",
+        )
+        Assignment.objects.create(
+            member=member,
+            server_group=visible_env,
+            role=Assignment.ROLE_USER,
+        )
+        Server.objects.create(
+            name="visible-web",
+            hostname="visible-web",
+            server_group=visible_env,
+        )
+        Server.objects.create(
+            name="hidden-web",
+            hostname="hidden-web",
+            server_group=hidden_env,
+        )
+
+        res = member_client.get("/api/workspace/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["role"], "member")
+        self.assertEqual(res.data["member_id"], member.id)
+        self.assertFalse(res.data["can_view_billing"])
+        self.assertFalse(res.data["can_manage_billing"])
+
+        res = member_client.get("/api/projects/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([p["name"] for p in res.data], ["Visible"])
+        self.assertEqual(res.data[0]["tags"], ["client", "web"])
+
+        res = member_client.get("/api/servers/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([s["hostname"] for s in res.data], ["visible-web"])
+
+        res = member_client.post("/api/teams/", {"name": "Not allowed"}, format="json")
+        self.assertEqual(res.status_code, 403)
+        res = member_client.get(f"/api/projects/{visible.id}/access/")
+        self.assertEqual(res.status_code, 403)
+        res = member_client.get(f"/api/projects/{hidden.id}/")
+        self.assertEqual(res.status_code, 404)
+
+    def test_workspace_admin_role_sees_billing_read_flags(self):
+        admin_user = User(username="workspace-admin", email="wa@example.com")
+        admin_user._skip_workspace_creation = True
+        admin_user.set_password("admin-pass")
+        admin_user.save()
+        WorkspaceAdmin.objects.create(workspace=self.ws, user=admin_user)
+        token = Token.objects.create(user=admin_user)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+        res = client.get("/api/workspace/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["role"], "admin")
+        self.assertTrue(res.data["can_view_billing"])
+        self.assertFalse(res.data["can_manage_billing"])
+
+    def test_project_tags_filter_and_normalize(self):
+        res = self.client.post(
+            "/api/projects/",
+            {
+                "name": "Tagged",
+                "description": "Has tags",
+                "tags": [" Client ", "web", "client"],
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.data["tags"], ["client", "web"])
+        Project.objects.create(name="Other", workspace=self.ws, tags=["internal"])
+
+        res = self.client.get("/api/projects/?tag=client")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([p["name"] for p in res.data], ["Tagged"])
+
+    def test_member_access_request_grant_creates_assignment(self):
+        member, member_client = self._member_client("devon", "devon@example.com")
+        project = Project.objects.create(name="Seersite", workspace=self.ws)
+        env = ServerGroup.objects.create(
+            project=project,
+            workspace=self.ws,
+            name="Production",
+        )
+
+        res = member_client.post(
+            "/api/access-requests/",
+            {
+                "kind": "access",
+                "project": project.id,
+                "server_group": env.id,
+                "role_requested": "sudo",
+                "note": "Need prod access",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        req_id = res.data["id"]
+        self.assertEqual(res.data["status"], AccessRequest.STATUS_PENDING)
+
+        res = self.client.get("/api/access-requests/count/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["pending"], 1)
+
+        res = self.client.post(f"/api/access-requests/{req_id}/grant/")
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.data["status"], AccessRequest.STATUS_APPROVED)
+        self.assertTrue(
+            Assignment.objects.filter(
+                member=member,
+                server_group=env,
+                role=Assignment.ROLE_SUDO,
+            ).exists()
+        )
+
+    def test_project_access_request_grant_assigns_all_project_environments(self):
+        member, member_client = self._member_client("jules", "jules@example.com")
+        project = Project.objects.create(name="Import", workspace=self.ws)
+        env_a = ServerGroup.objects.create(
+            project=project,
+            workspace=self.ws,
+            name="Staging",
+        )
+        env_b = ServerGroup.objects.create(
+            project=project,
+            workspace=self.ws,
+            name="Production",
+        )
+        res = member_client.post(
+            "/api/access-requests/",
+            {
+                "kind": "access",
+                "project": project.id,
+                "role_requested": "user",
+                "note": "Need all project environments",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+
+        res = self.client.post(f"/api/access-requests/{res.data['id']}/grant/")
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(
+            set(
+                Assignment.objects.filter(member=member).values_list(
+                    "server_group_id",
+                    flat=True,
+                )
+            ),
+            {env_a.id, env_b.id},
+        )
+
+    def test_access_requests_are_resolved_only_by_actions(self):
+        member, member_client = self._member_client("noah", "noah@example.com")
+        req = AccessRequest.objects.create(
+            workspace=self.ws,
+            member=member,
+            kind=AccessRequest.KIND_KEY,
+            key_label="desktop",
+        )
+        self.assertEqual(
+            member_client.patch(
+                f"/api/access-requests/{req.id}/",
+                {"status": AccessRequest.STATUS_DENIED},
+                format="json",
+            ).status_code,
+            405,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/access-requests/{req.id}/").status_code,
+            405,
+        )
+
+    def test_grant_rejects_globally_revoked_member(self):
+        member, _member_client = self._member_client("revoked", "revoked@example.com")
+        member.access_revoked = True
+        member.save(update_fields=["access_revoked"])
+        project = Project.objects.create(name="Nope", workspace=self.ws)
+        env = ServerGroup.objects.create(project=project, workspace=self.ws, name="Prod")
+        req = AccessRequest.objects.create(
+            workspace=self.ws,
+            member=member,
+            kind=AccessRequest.KIND_ACCESS,
+            server_group=env,
+            role_requested=Assignment.ROLE_USER,
+        )
+
+        res = self.client.post(f"/api/access-requests/{req.id}/grant/")
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(Assignment.objects.filter(member=member, server_group=env).exists())
+
+    def test_direct_removed_overrides_team_access_for_member_visibility_and_provision(self):
+        member, member_client = self._member_client("casey", "casey@example.com")
+        team = Team.objects.create(name="Ops", workspace=self.ws)
+        member.teams.add(team)
+        project = Project.objects.create(name="Blocked", workspace=self.ws)
+        env = ServerGroup.objects.create(project=project, workspace=self.ws, name="Prod")
+        Server.objects.create(name="blocked", hostname="blocked", server_group=env)
+        SSHKey.objects.create(
+            member=member,
+            label="main",
+            public_key="ssh-ed25519 AAAACasey casey@workstation",
+        )
+        Assignment.objects.create(team=team, server_group=env, role=Assignment.ROLE_USER)
+        Assignment.objects.create(
+            member=member,
+            server_group=env,
+            role=Assignment.ROLE_REMOVED,
+        )
+
+        res = member_client.get("/api/projects/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data, [])
+        res = member_client.get("/api/servers/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data, [])
+
+        script = generate_provision_script(env)
+        self.assertIn("revoke_user casey", script)
+        self.assertNotIn("ensure_user casey", script)
+
+    def test_admin_assign_self_creates_linked_member_if_needed(self):
+        project = Project.objects.create(name="Self", workspace=self.ws)
+        env = ServerGroup.objects.create(project=project, workspace=self.ws, name="Prod")
+        res = self.client.post(f"/api/projects/{project.id}/assign-self/")
+        self.assertEqual(res.status_code, 200, res.content)
+        member = Member.objects.get(user=self.user)
+        self.assertEqual(res.data["member"], member.id)
+        self.assertTrue(
+            Assignment.objects.filter(
+                member=member,
+                server_group=env,
+                role=Assignment.ROLE_USER,
+            ).exists()
+        )
+
+    def test_member_invite_links_login_user_without_new_workspace(self):
+        member = Member.objects.create(
+            username="lena",
+            email="lena@example.com",
+            workspace=self.ws,
+        )
+        res = self.client.post(f"/api/members/{member.id}/invite/")
+        self.assertEqual(res.status_code, 200, res.content)
+        member.refresh_from_db()
+        self.assertIsNotNone(member.user_id)
+        self.assertFalse(hasattr(member.user, "sanctum_workspace"))
 
     def test_teams_crud(self):
         res = self.client.post("/api/teams/", {"name": "Backend"}, format="json")

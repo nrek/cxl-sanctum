@@ -13,6 +13,7 @@ from .models import (
     ServerHeartbeatLog,
     Assignment,
     WorkspaceAdmin,
+    AccessRequest,
 )
 from .linux_groups import validate_supplemental_groups
 from .workspace import get_request_workspace
@@ -35,6 +36,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "description",
+            "tags",
             "environment_count",
             "access_row_count",
             "environment_worst_status",
@@ -42,6 +44,27 @@ class ProjectSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_tags(self, value):
+        if value in (None, ""):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Tags must be a list.")
+        out = []
+        seen = set()
+        for raw in value:
+            tag = str(raw or "").strip().lower()
+            if not tag:
+                continue
+            tag = "-".join(part for part in tag.replace(",", " ").split() if part)
+            if not tag:
+                continue
+            if len(tag) > 40:
+                raise serializers.ValidationError("Tags must be 40 characters or fewer.")
+            if tag not in seen:
+                seen.add(tag)
+                out.append(tag)
+        return out
 
     def _now(self):
         return self.context.get("_now") or timezone.now()
@@ -556,6 +579,87 @@ class AssignmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "This user’s access is globally revoked. Restore access on the Members page before granting user or sudo."
             )
+        return attrs
+
+
+class AccessRequestSerializer(serializers.ModelSerializer):
+    member = MemberMinimalSerializer(read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    server_group_name = serializers.CharField(source="server_group.name", read_only=True)
+    team_name = serializers.CharField(source="team.name", read_only=True)
+
+    class Meta:
+        model = AccessRequest
+        fields = [
+            "id",
+            "kind",
+            "status",
+            "member",
+            "project",
+            "project_name",
+            "server_group",
+            "server_group_name",
+            "server",
+            "team",
+            "team_name",
+            "role_requested",
+            "key_label",
+            "algorithm",
+            "note",
+            "admin_note",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "status",
+            "member",
+            "admin_note",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request is None:
+            return
+        ws = get_request_workspace(request)
+        if ws is None:
+            return
+        self.fields["project"].queryset = Project.objects.filter(workspace=ws)
+        self.fields["server_group"].queryset = ServerGroup.objects.filter(workspace=ws)
+        self.fields["server"].queryset = Server.objects.filter(server_group__workspace=ws)
+        self.fields["team"].queryset = Team.objects.filter(workspace=ws)
+
+    def validate(self, attrs):
+        kind = attrs.get("kind") or getattr(self.instance, "kind", "")
+        if kind not in (AccessRequest.KIND_ACCESS, AccessRequest.KIND_KEY):
+            raise serializers.ValidationError({"kind": "Invalid request kind."})
+        server_group = attrs.get("server_group")
+        project = attrs.get("project")
+        team = attrs.get("team")
+        server = attrs.get("server")
+        if kind == AccessRequest.KIND_ACCESS:
+            if server_group is None and project is None and team is None and server is None:
+                raise serializers.ValidationError(
+                    "Access requests need a project, environment, team, or server."
+                )
+            role = attrs.get("role_requested") or Assignment.ROLE_USER
+            if role not in (Assignment.ROLE_USER, Assignment.ROLE_SUDO):
+                raise serializers.ValidationError({"role_requested": "Invalid role."})
+        if server_group is not None and project is not None:
+            if server_group.project_id and server_group.project_id != project.id:
+                raise serializers.ValidationError(
+                    {"server_group": "Environment does not belong to this project."}
+                )
+        if server is not None and server_group is not None:
+            if server.server_group_id != server_group.id:
+                raise serializers.ValidationError(
+                    {"server": "Server does not belong to this environment."}
+                )
         return attrs
 
 

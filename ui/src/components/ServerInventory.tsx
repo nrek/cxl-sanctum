@@ -11,6 +11,7 @@ interface ServerInventoryProps {
   environmentId: number;
   environmentName: string;
   onChange: () => void;
+  readOnly?: boolean;
 }
 
 type Tab = "all" | ServerStatus;
@@ -59,6 +60,7 @@ export default function ServerInventory({
   environmentId,
   environmentName,
   onChange,
+  readOnly = false,
 }: ServerInventoryProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [deleteTarget, setDeleteTarget] = useState<Server | null>(null);
@@ -159,7 +161,7 @@ export default function ServerInventory({
             );
           })}
         </div>
-        {tab === "dead" && deadServers.length > 0 && (
+        {!readOnly && tab === "dead" && deadServers.length > 0 && (
           <button
             type="button"
             onClick={() => setPruneOpen(true)}
@@ -214,28 +216,30 @@ export default function ServerInventory({
                   </code>
                 </span>
               )}
-              <span className="ml-auto flex items-center gap-1">
-                <Tooltip
-                  label={
-                    s.status === "dead"
-                      ? "Delete this dead server row"
-                      : "Delete this server (type hostname to confirm)"
-                  }
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeleteTarget(s);
-                      setDeleteConfirm("");
-                      setError(null);
-                    }}
-                    className="icon-btn-danger"
-                    aria-label={`Delete ${s.hostname || s.name}`}
+              {!readOnly ? (
+                <span className="ml-auto flex items-center gap-1">
+                  <Tooltip
+                    label={
+                      s.status === "dead"
+                        ? "Delete this dead server row"
+                        : "Delete this server (type hostname to confirm)"
+                    }
                   >
-                    <i className="fa-solid fa-trash" aria-hidden />
-                  </button>
-                </Tooltip>
-              </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteTarget(s);
+                        setDeleteConfirm("");
+                        setError(null);
+                      }}
+                      className="icon-btn-danger"
+                      aria-label={`Delete ${s.hostname || s.name}`}
+                    >
+                      <i className="fa-solid fa-trash" aria-hidden />
+                    </button>
+                  </Tooltip>
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -21,6 +21,7 @@ import MetricCard from "@/components/MetricCard";
 import UsageMeter from "@/components/UsageMeter";
 import StatusDot from "@/components/StatusDot";
 import type { HeartbeatRhythmStatus } from "@/lib/api";
+import { canManageBilling, canViewBilling, isAdminRole } from "@/lib/roles";
 
 const PAGE_SIZE_OPTIONS = [8, 15, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 8;
@@ -94,8 +95,7 @@ export default function DashboardPage() {
   const workspace: WorkspaceSummary | null = ctxWorkspace;
 
   const loadBilling = useCallback(() => {
-    const role = workspace?.role ?? "owner";
-    if (!workspace || role !== "owner") {
+    if (!workspace || !canViewBilling(workspace)) {
       setBilling(null);
       return;
     }
@@ -155,8 +155,9 @@ export default function DashboardPage() {
     }
   };
 
-  const isOwner = (workspace?.role ?? "owner") === "owner";
-  const showHostedBilling = isOwner && billing !== null;
+  const manageBilling = canManageBilling(workspace);
+  const showHostedBilling = canViewBilling(workspace) && billing !== null;
+  const adminRole = isAdminRole(workspace);
 
   const envLimit =
     billing?.environment_limit ?? workspace?.environment_limit ?? null;
@@ -179,7 +180,7 @@ export default function DashboardPage() {
           />
           {showHostedBilling ? (
             <div className="flex flex-wrap gap-2">
-              {billing.plan === "free" ? (
+              {manageBilling && billing.plan === "free" ? (
                 <button
                   type="button"
                   disabled={billingAction}
@@ -188,10 +189,12 @@ export default function DashboardPage() {
                 >
                   {billingAction ? "Redirecting…" : "Upgrade to Pro →"}
                 </button>
-              ) : (
+              ) : billing.plan !== "free" ? (
                 <span className="status-pill-success">Pro</span>
+              ) : (
+                <span className="status-pill-warning">Free</span>
               )}
-              {billing.has_stripe_customer ? (
+              {manageBilling && billing.has_stripe_customer ? (
                 <button
                   type="button"
                   disabled={billingAction}
@@ -257,7 +260,7 @@ export default function DashboardPage() {
             key={card.key}
             label={card.label}
             value={stats ? stats[card.key] : "—"}
-            href={card.href ?? undefined}
+            href={card.key === "members" && !adminRole ? undefined : card.href ?? undefined}
           />
         ))}
       </div>

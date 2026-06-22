@@ -44,6 +44,7 @@ class Project(models.Model):
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, default="")
+    tags = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -87,6 +88,13 @@ class Member(models.Model):
         Workspace,
         on_delete=models.CASCADE,
         related_name="members",
+    )
+    user = models.OneToOneField(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        related_name="sanctum_member",
+        null=True,
+        blank=True,
     )
     username = models.CharField(max_length=64)
     email = models.EmailField(blank=True, default="")
@@ -286,3 +294,101 @@ class Assignment(models.Model):
     def __str__(self):
         who = self.team.name if self.team_id else self.member.username
         return f"{who} -> {self.server_group.name}: {self.role}"
+
+
+class AccessRequest(models.Model):
+    """Member-created request for an admin to grant access or issue a key."""
+
+    KIND_ACCESS = "access"
+    KIND_KEY = "key"
+    KIND_CHOICES = [
+        (KIND_ACCESS, "Access"),
+        (KIND_KEY, "Key"),
+    ]
+
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_DENIED = "denied"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_DENIED, "Denied"),
+    ]
+
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+    )
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+    )
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+        null=True,
+        blank=True,
+    )
+    server_group = models.ForeignKey(
+        ServerGroup,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+        null=True,
+        blank=True,
+    )
+    server = models.ForeignKey(
+        Server,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+        null=True,
+        blank=True,
+    )
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+        null=True,
+        blank=True,
+    )
+    role_requested = models.CharField(
+        max_length=10,
+        choices=[
+            (Assignment.ROLE_USER, "User"),
+            (Assignment.ROLE_SUDO, "Sudo"),
+        ],
+        blank=True,
+        default=Assignment.ROLE_USER,
+    )
+    key_label = models.CharField(max_length=100, blank=True, default="")
+    algorithm = models.CharField(max_length=32, blank=True, default="ed25519")
+    note = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=12,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    reviewed_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        related_name="reviewed_access_requests",
+        null=True,
+        blank=True,
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["workspace", "status", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.member.username} {self.kind} request ({self.status})"

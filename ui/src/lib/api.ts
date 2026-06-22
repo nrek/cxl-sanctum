@@ -195,8 +195,11 @@ export interface WorkspaceSummary {
   environment_count: number;
   environment_limit: number | null;
   deployment_mode: string;
-  /** Account owner vs workspace admin (team lead). Omitted on older APIs (treated as owner). */
-  role?: "owner" | "admin";
+  role: "owner" | "admin" | "member";
+  member_id: number | null;
+  can_view_billing: boolean;
+  can_manage_billing: boolean;
+  pending_access_requests: number;
 }
 
 export async function fetchWorkspaceSummary(): Promise<WorkspaceSummary> {
@@ -298,6 +301,7 @@ export interface MemberMinimal {
   id: number;
   username: string;
   email: string;
+  access_revoked?: boolean;
 }
 
 export interface Team {
@@ -352,6 +356,7 @@ export interface Project {
   id: number;
   name: string;
   description: string;
+  tags: string[];
   environment_count?: number;
   access_row_count?: number;
   environment_worst_status?: ProjectEnvironmentWorstStatus;
@@ -499,4 +504,86 @@ export interface ProjectAccessResponse {
   team_rows: ProjectAccessTeamRow[];
   member_rows: ProjectAccessMemberRow[];
   revoked_member_rows: ProjectAccessMemberRow[];
+}
+
+export type AccessRequestKind = "access" | "key";
+export type AccessRequestStatus = "pending" | "approved" | "denied";
+
+export interface AccessRequest {
+  id: number;
+  kind: AccessRequestKind;
+  status: AccessRequestStatus;
+  member: MemberMinimal;
+  project: number | null;
+  project_name: string | null;
+  server_group: number | null;
+  server_group_name: string | null;
+  server: number | null;
+  team: number | null;
+  team_name: string | null;
+  role_requested: "user" | "sudo";
+  key_label: string;
+  algorithm: string;
+  note: string;
+  admin_note: string;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  private_key?: string;
+}
+
+export interface AccessRequestInput {
+  kind: AccessRequestKind;
+  project?: number | null;
+  server_group?: number | null;
+  server?: number | null;
+  team?: number | null;
+  role_requested?: "user" | "sudo";
+  key_label?: string;
+  algorithm?: string;
+  note?: string;
+}
+
+export function fetchAccessRequests(params: {
+  status?: AccessRequestStatus;
+  kind?: AccessRequestKind;
+} = {}): Promise<AccessRequest[]> {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.kind) qs.set("kind", params.kind);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<AccessRequest[]>(`/access-requests/${suffix}`);
+}
+
+export function createAccessRequest(
+  payload: AccessRequestInput
+): Promise<AccessRequest> {
+  return apiFetch<AccessRequest>("/access-requests/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function grantAccessRequest(id: number): Promise<AccessRequest> {
+  return apiFetch<AccessRequest>(`/access-requests/${id}/grant/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function denyAccessRequest(id: number): Promise<AccessRequest> {
+  return apiFetch<AccessRequest>(`/access-requests/${id}/deny/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function inviteMember(id: number): Promise<{ member: number; user: number; sent: boolean }> {
+  return apiFetch<{ member: number; user: number; sent: boolean }>(
+    `/members/${id}/invite/`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
 }

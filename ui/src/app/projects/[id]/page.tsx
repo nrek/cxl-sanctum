@@ -19,12 +19,16 @@ import SupplementalGroupsEditor from "@/components/SupplementalGroupsEditor";
 import Modal from "@/components/Modal";
 import PageHeader from "@/components/PageHeader";
 import Tooltip from "@/components/Tooltip";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { isAdminRole } from "@/lib/roles";
 
 type RoleOpt = "" | "user" | "sudo" | "removed";
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { workspace } = useWorkspace();
+  const isAdmin = isAdminRole(workspace);
 
   const [project, setProject] = useState<Project | null>(null);
   const [access, setAccess] = useState<ProjectAccessResponse | null>(null);
@@ -49,7 +53,12 @@ export default function ProjectDetailPage() {
   const [deleteEnvConfirm, setDeleteEnvConfirm] = useState("");
   const [deletingEnv, setDeletingEnv] = useState(false);
   const [editProjectOpen, setEditProjectOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", description: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    tags: [] as string[],
+  });
+  const [editTagDraft, setEditTagDraft] = useState("");
   const [expandedEnvs, setExpandedEnvs] = useState<Set<number>>(new Set());
 
   const toggleEnv = (envId: number) => {
@@ -86,16 +95,18 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     loadProject();
-    loadAccess();
-    loadTeams();
-    loadMembers();
+    if (isAdmin) {
+      loadAccess();
+      loadTeams();
+      loadMembers();
+    }
     loadServers();
-  }, [loadProject, loadAccess, loadTeams, loadMembers, loadServers]);
+  }, [isAdmin, loadProject, loadAccess, loadTeams, loadMembers, loadServers]);
 
   const envIds = access?.environments.map((e) => e.id) ?? [];
-  const serversInProject = servers.filter((s) =>
-    envIds.includes(s.server_group)
-  );
+  const serversInProject = isAdmin
+    ? servers.filter((s) => envIds.includes(s.server_group))
+    : servers.filter((s) => s.project_name === project?.name);
 
   const serverCountForGroup = (gid: number) =>
     serversInProject.filter((s) => s.server_group === gid).length;
@@ -330,8 +341,26 @@ export default function ProjectDetailPage() {
     setEditForm({
       name: project.name,
       description: project.description ?? "",
+      tags: project.tags ?? [],
     });
+    setEditTagDraft("");
     setEditProjectOpen(true);
+  };
+
+  const addEditTag = () => {
+    const next = editTagDraft
+      .split(/[,\s]+/)
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
+    if (next.length === 0) return;
+    setEditForm((prev) => {
+      const tags = [...prev.tags];
+      for (const tag of next) {
+        if (!tags.includes(tag)) tags.push(tag);
+      }
+      return { ...prev, tags };
+    });
+    setEditTagDraft("");
   };
 
   const handleSaveProject = async (e: React.FormEvent) => {
@@ -341,13 +370,93 @@ export default function ProjectDetailPage() {
       body: JSON.stringify({
         name: editForm.name.trim(),
         description: editForm.description,
+        tags: editForm.tags,
       }),
     });
     setEditProjectOpen(false);
     loadProject();
   };
 
-  if (!project || !access) {
+  if (!project) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 text-sanctum-muted">Loading...</div>
+    );
+  }
+
+  if (!isAdmin) {
+    const groupedServers = Array.from(
+      serversInProject.reduce((map, server) => {
+        const current = map.get(server.server_group) ?? {
+          id: server.server_group,
+          name: server.server_group_name,
+          servers: [] as Server[],
+        };
+        current.servers.push(server);
+        map.set(server.server_group, current);
+        return map;
+      }, new Map<number, { id: number; name: string; servers: Server[] }>())
+    ).map(([, group]) => group);
+
+    return (
+      <div className="max-w-6xl p-4 sm:p-6 lg:p-8">
+        <div className="mb-6">
+          <Link href="/projects" className="link-accent text-sm">
+            &larr; Projects
+          </Link>
+        </div>
+        <PageHeader
+          title={project.name}
+          subtitle={project.description || "Server inventory you can access."}
+          actions={
+            <Link href="/profile" className="btn-secondary shrink-0 text-sm">
+              Request access →
+            </Link>
+          }
+        />
+        {(project.tags ?? []).length > 0 ? (
+          <div className="mb-5 flex flex-wrap gap-2">
+            {(project.tags ?? []).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-md border border-sanctum-line bg-sanctum-bg px-2 py-0.5 font-mono text-[10px] text-sanctum-muted"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <div className="sanctum-card p-6">
+          <h2 className="mb-4 text-lg font-semibold text-sanctum-mist">
+            Server inventory
+          </h2>
+          {groupedServers.length === 0 ? (
+            <p className="text-sm text-sanctum-muted">
+              No servers are reporting for your assigned environments yet.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {groupedServers.map((group) => (
+                <div key={group.id}>
+                  <h3 className="font-display text-sm font-bold text-sanctum-mist">
+                    {group.name}
+                  </h3>
+                  <ServerInventory
+                    servers={group.servers}
+                    environmentId={group.id}
+                    environmentName={group.name}
+                    onChange={loadServers}
+                    readOnly
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!access) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 text-sanctum-muted">Loading...</div>
     );
@@ -845,6 +954,57 @@ export default function ProjectDetailPage() {
               rows={4}
               className="sanctum-input min-h-[6rem]"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-sanctum-mist">
+              Tags
+            </label>
+            <p className="mb-2 text-xs text-sanctum-muted">
+              Used to group and filter projects on the Projects page.
+            </p>
+            {editForm.tags.length > 0 ? (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {editForm.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-2 rounded-full border border-sanctum-line bg-sanctum-bg px-3 py-1 font-mono text-xs text-sanctum-mist"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          tags: prev.tags.filter((existing) => existing !== tag),
+                        }))
+                      }
+                      className="text-sanctum-muted hover:text-danger"
+                      aria-label={`Remove ${tag}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={editTagDraft}
+                onChange={(e) => setEditTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addEditTag();
+                  }
+                }}
+                placeholder="client, web, edge"
+                className="sanctum-input"
+              />
+              <button type="button" onClick={addEditTag} className="btn-secondary">
+                Add tag
+              </button>
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button

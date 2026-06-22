@@ -18,8 +18,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .environment_policy import check_environment_creation, get_environment_limit
-from .workspace import get_request_workspace
-from .permissions import IsWorkspaceOwner
+from .workspace import get_request_member, get_request_role, get_request_workspace
+from .permissions import IsWorkspaceAdmin, IsWorkspaceMember, IsWorkspaceOwner, ReadOnlyForMember
 
 from .models import (
     Team,
@@ -31,6 +31,7 @@ from .models import (
     ServerHeartbeatLog,
     Assignment,
     WorkspaceAdmin,
+    AccessRequest,
 )
 from .serializers import (
     TeamSerializer,
@@ -47,6 +48,7 @@ from .serializers import (
     SERVER_STALE_WITHIN_SEC,
     build_heartbeat_rhythm_by_server_id,
     AssignmentSerializer,
+    AccessRequestSerializer,
     WorkspaceAdminSerializer,
     WorkspaceAdminCreateSerializer,
     WorkspaceAdminPatchSerializer,
@@ -58,9 +60,39 @@ from .member_access import revoke_member_globally, restore_member_access
 _PROCESS_START = time.time()
 
 
+def member_accessible_server_group_ids(ws, member):
+    if member is None or member.access_revoked:
+        return []
+    return list(
+        ServerGroup.objects.filter(workspace=ws)
+        .filter(
+            Q(
+                assignments__member=member,
+                assignments__role__in=(
+                    Assignment.ROLE_USER,
+                    Assignment.ROLE_SUDO,
+                ),
+            )
+            | Q(
+                assignments__team__members=member,
+                assignments__role__in=(
+                    Assignment.ROLE_USER,
+                    Assignment.ROLE_SUDO,
+                ),
+            )
+        )
+        .exclude(
+            assignments__member=member,
+            assignments__role=Assignment.ROLE_REMOVED,
+        )
+        .values_list("id", flat=True)
+        .distinct()
+    )
+
+
 class TeamViewSet(viewsets.ModelViewSet):
     serializer_class = TeamSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsWorkspaceAdmin]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -126,7 +158,7 @@ class TeamViewSet(viewsets.ModelViewSet):
 
 class MemberViewSet(viewsets.ModelViewSet):
     serializer_class = MemberSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsWorkspaceAdmin]
 
     def get_queryset(self):
         ws = get_request_workspace(self.request)
@@ -223,10 +255,63 @@ class MemberViewSet(viewsets.ModelViewSet):
         serializer = MemberSerializer(member, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"], url_path="invite")
+    def invite(self, request, pk=None):
+        """Link a dashboard login to this SSH member and send a set-password link."""
+        member = self.get_object()
+        if not member.email:
+            return Response(
+                {"detail": "Member needs an email before invite."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        User = get_user_model()
+        user = member.user
+        if user is None:
+            username = member.username
+            if User.objects.filter(username__iexact=username).exists():
+                username = f"{member.username}-{member.id}"
+            user = User(username=username, email=member.email)
+            user._skip_workspace_creation = True
+            user.set_unusable_password()
+            user.save()
+            member.user = user
+            member.save(update_fields=["user"])
+        elif user.email != member.email:
+            user.email = member.email
+            user.save(update_fields=["email"])
+
+        from django.contrib.auth.tokens import default_token_generator
+        from django.core.mail import send_mail
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        base = getattr(django_settings, "SANCTUM_FRONTEND_URL", "") or "http://localhost:3000"
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_link = f"{base.rstrip('/')}/reset-password?uid={uid}&token={token}"
+        try:
+            send_mail(
+                "Set your SANCTUM password",
+                (
+                    f"Hi {member.username},\n\n"
+                    f"Use this link to set your Sanctum password:\n{reset_link}\n"
+                ),
+                getattr(django_settings, "DEFAULT_FROM_EMAIL", "noreply@localhost"),
+                [member.email],
+                fail_silently=True,
+            )
+        except OSError:
+            pass
+        return Response({"member": member.id, "user": user.id, "sent": True})
+
 
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [IsWorkspaceMember()]
+        return [IsWorkspaceAdmin()]
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
@@ -237,7 +322,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         ws = get_request_workspace(self.request)
         if ws is None:
             return Project.objects.none()
-        return (
+        qs = (
             Project.objects.filter(workspace=ws)
             .annotate(
                 environment_count=Count("server_groups", distinct=True),
@@ -250,6 +335,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
             .order_by("name")
         )
+        role = get_request_role(self.request)
+        if role == "member":
+            member = get_request_member(self.request)
+            group_ids = member_accessible_server_group_ids(ws, member)
+            if not group_ids:
+                return Project.objects.none()
+            qs = qs.filter(server_groups__id__in=group_ids).distinct()
+        tag = (self.request.query_params.get("tag") or "").strip().lower()
+        if tag:
+            matching_ids = [
+                project.id
+                for project in qs
+                if tag in (project.tags or [])
+            ]
+            qs = qs.filter(id__in=matching_ids)
+        search = (self.request.query_params.get("search") or "").strip().lower()
+        if search:
+            matching_ids = [
+                project.id
+                for project in qs
+                if search in project.name.lower()
+                or any(search in tag for tag in (project.tags or []))
+            ]
+            qs = qs.filter(id__in=matching_ids)
+        return qs
 
     def perform_create(self, serializer):
         ws = get_request_workspace(self.request)
@@ -452,6 +562,43 @@ class ProjectViewSet(viewsets.ModelViewSet):
             count += 1
         return Response({"updated": count})
 
+    @action(detail=True, methods=["post"], url_path="assign-self")
+    def assign_self(self, request, pk=None):
+        """Admin quick action: ensure this login has a Member row, then assign it."""
+        project = self.get_object()
+        member = get_request_member(request)
+        if member is None:
+            username = request.user.username or f"user-{request.user.id}"
+            if Member.objects.filter(
+                workspace_id=project.workspace_id,
+                username__iexact=username,
+            ).exists():
+                username = f"{username}-{request.user.id}"
+            member = Member.objects.create(
+                workspace_id=project.workspace_id,
+                user=request.user,
+                username=username,
+                email=request.user.email or "",
+            )
+        if member.access_revoked:
+            return Response(
+                {"detail": "Restore your member access before assigning yourself."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        sgs = list(project.server_groups.all())
+        if not sgs:
+            return Response(
+                {"detail": "project has no environments"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        for sg in sgs:
+            Assignment.objects.update_or_create(
+                member=member,
+                server_group=sg,
+                defaults={"role": Assignment.ROLE_USER, "team": None},
+            )
+        return Response({"member": member.id, "updated": len(sgs)})
+
     @action(detail=True, methods=["post"], url_path="setup-environments")
     def setup_environments(self, request, pk=None):
         """Create preset server groups (Development, Staging, Production) if checked."""
@@ -486,7 +633,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 class ServerGroupViewSet(viewsets.ModelViewSet):
     serializer_class = ServerGroupSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsWorkspaceAdmin]
 
     def get_queryset(self):
         ws = get_request_workspace(self.request)
@@ -530,7 +677,7 @@ class ServerGroupViewSet(viewsets.ModelViewSet):
 
 class ServerViewSet(viewsets.ModelViewSet):
     serializer_class = ServerSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [ReadOnlyForMember]
 
     # Minimum age (hours) for bulk prune; guards against accidentally sweeping
     # recently-stale servers that may just be mid-reboot or mid-network-blip.
@@ -551,6 +698,13 @@ class ServerViewSet(viewsets.ModelViewSet):
             .select_related("server_group", "server_group__project")
             .order_by("-last_seen", "name")
         )
+        role = get_request_role(self.request)
+        if role == "member":
+            member = get_request_member(self.request)
+            group_ids = member_accessible_server_group_ids(ws, member)
+            if not group_ids:
+                return Server.objects.none()
+            qs = qs.filter(server_group_id__in=group_ids)
         group_id = self.request.query_params.get("server_group")
         if group_id:
             qs = qs.filter(server_group_id=group_id)
@@ -643,7 +797,7 @@ class ServerViewSet(viewsets.ModelViewSet):
 
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsWorkspaceAdmin]
 
     def get_queryset(self):
         ws = get_request_workspace(self.request)
@@ -669,6 +823,151 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         if member is not None and member.workspace_id != ws.id:
             raise ValidationError({"member": "Invalid member."})
         serializer.save()
+
+
+class AccessRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = AccessRequestSerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_permissions(self):
+        if self.action in ("grant", "deny", "count"):
+            return [IsWorkspaceAdmin()]
+        return [IsWorkspaceMember()]
+
+    def get_queryset(self):
+        ws = get_request_workspace(self.request)
+        if ws is None:
+            return AccessRequest.objects.none()
+        qs = (
+            AccessRequest.objects.filter(workspace=ws)
+            .select_related(
+                "member",
+                "project",
+                "server_group",
+                "server",
+                "team",
+                "reviewed_by",
+            )
+            .order_by("-created_at")
+        )
+        if get_request_role(self.request) == "member":
+            member = get_request_member(self.request)
+            if member is None:
+                return AccessRequest.objects.none()
+            qs = qs.filter(member=member)
+        status_q = self.request.query_params.get("status")
+        if status_q in (
+            AccessRequest.STATUS_PENDING,
+            AccessRequest.STATUS_APPROVED,
+            AccessRequest.STATUS_DENIED,
+        ):
+            qs = qs.filter(status=status_q)
+        kind_q = self.request.query_params.get("kind")
+        if kind_q in (AccessRequest.KIND_ACCESS, AccessRequest.KIND_KEY):
+            qs = qs.filter(kind=kind_q)
+        return qs
+
+    def perform_create(self, serializer):
+        ws = get_request_workspace(self.request)
+        member = get_request_member(self.request)
+        if ws is None or member is None:
+            raise ValidationError("Only member accounts can create access requests.")
+        serializer.save(workspace=ws, member=member)
+
+    @action(detail=False, methods=["get"], url_path="count")
+    def count(self, request):
+        ws = get_request_workspace(request)
+        pending = 0
+        if ws is not None:
+            pending = AccessRequest.objects.filter(
+                workspace=ws,
+                status=AccessRequest.STATUS_PENDING,
+            ).count()
+        return Response({"pending": pending})
+
+    @action(detail=True, methods=["post"], url_path="grant")
+    def grant(self, request, pk=None):
+        access_request = self.get_object()
+        if access_request.status != AccessRequest.STATUS_PENDING:
+            return Response(
+                {"detail": "Request is already resolved."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if access_request.member.access_revoked:
+            return Response(
+                {"detail": "Restore member access before granting this request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        private_key = None
+        if access_request.kind == AccessRequest.KIND_ACCESS:
+            target_groups = []
+            if access_request.server_group_id:
+                target_groups = [access_request.server_group]
+            elif access_request.server_id:
+                target_groups = [access_request.server.server_group]
+            elif access_request.project_id:
+                target_groups = list(access_request.project.server_groups.all())
+            if not target_groups:
+                return Response(
+                    {"detail": "Access request needs an environment."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            for target_group in target_groups:
+                Assignment.objects.update_or_create(
+                    member=access_request.member,
+                    server_group=target_group,
+                    defaults={
+                        "team": None,
+                        "role": access_request.role_requested or Assignment.ROLE_USER,
+                    },
+                )
+        elif access_request.kind == AccessRequest.KIND_KEY:
+            private = Ed25519PrivateKey.generate()
+            public = private.public_key()
+            public_ssh = public.public_bytes(
+                serialization.Encoding.OpenSSH,
+                serialization.PublicFormat.OpenSSH,
+            ).decode()
+            private_key = private.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.OpenSSH,
+                serialization.NoEncryption(),
+            ).decode()
+            SSHKey.objects.create(
+                member=access_request.member,
+                label=access_request.key_label or "Generated key",
+                public_key=public_ssh,
+            )
+        access_request.status = AccessRequest.STATUS_APPROVED
+        access_request.reviewed_by = request.user
+        access_request.reviewed_at = timezone.now()
+        access_request.admin_note = request.data.get("admin_note", "")
+        access_request.save(
+            update_fields=["status", "reviewed_by", "reviewed_at", "admin_note", "updated_at"]
+        )
+        data = AccessRequestSerializer(access_request, context={"request": request}).data
+        if private_key:
+            data["private_key"] = private_key
+        return Response(data)
+
+    @action(detail=True, methods=["post"], url_path="deny")
+    def deny(self, request, pk=None):
+        access_request = self.get_object()
+        if access_request.status != AccessRequest.STATUS_PENDING:
+            return Response(
+                {"detail": "Request is already resolved."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        access_request.status = AccessRequest.STATUS_DENIED
+        access_request.reviewed_by = request.user
+        access_request.reviewed_at = timezone.now()
+        access_request.admin_note = request.data.get("admin_note", "")
+        access_request.save(
+            update_fields=["status", "reviewed_by", "reviewed_at", "admin_note", "updated_at"]
+        )
+        return Response(
+            AccessRequestSerializer(access_request, context={"request": request}).data
+        )
 
 
 class WorkspaceAdminViewSet(
@@ -861,7 +1160,14 @@ def workspace_summary(request):
         )
     env_count = ServerGroup.objects.filter(workspace=ws).count()
     limit = get_environment_limit(ws)
-    role = "owner" if ws.owner_id == request.user.id else "admin"
+    role = get_request_role(request)
+    pending_requests = 0
+    if role in ("owner", "admin"):
+        pending_requests = AccessRequest.objects.filter(
+            workspace=ws,
+            status=AccessRequest.STATUS_PENDING,
+        ).count()
+    member = get_request_member(request)
     return Response({
         "id": ws.id,
         "name": ws.name,
@@ -871,6 +1177,10 @@ def workspace_summary(request):
             django_settings, "SANCTUM_DEPLOYMENT_MODE", "self_hosted"
         ),
         "role": role,
+        "member_id": member.id if member else None,
+        "can_view_billing": role in ("owner", "admin"),
+        "can_manage_billing": role == "owner",
+        "pending_access_requests": pending_requests,
     })
 
 

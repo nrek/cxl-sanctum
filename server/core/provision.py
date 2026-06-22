@@ -9,6 +9,8 @@ from .models import Assignment
 def _effective_role(prev_role, new_role):
     if prev_role is None:
         return new_role
+    if "removed" in (prev_role, new_role):
+        return "removed"
     if "sudo" in (prev_role, new_role):
         return "sudo"
     if "user" in (prev_role, new_role):
