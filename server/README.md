@@ -133,7 +133,7 @@ Replace `YOUR_API_HOST` with the hostname (and path prefix, if any) where this D
 
 ### Cron (recommended)
 
-Create `/etc/cron.d/sanctum` with mode `0644`. The file **must end with a newline**; a missing newline or a bad user field can cause `cron` to ignore the file silently.
+Create `/etc/cron.d/sanctum` with mode `0644`. The file **must end with a newline**; a missing newline or a bad user field can cause `cron` to ignore the file silently. The provision script now **writes this file itself** on each run (so the environment you just bootstrapped replaces any previous Sanctum token on that host).
 
 ```
 */5 * * * * root curl -sSL https://YOUR_API_HOST/api/provision/<TOKEN>/ | bash

@@ -319,7 +319,7 @@ def generate_provision_script(server_group, request=None):
         "  mkdir -p /etc/sudoers.d",
         '  tmp=$(mktemp /etc/sudoers.d/.sanctum.XXXXXX)',
         "  {",
-        '    echo "# MANAGED BY SANCTUM — overwritten on each provision run; do not edit"',
+        '    echo "# MANAGED BY SANCTUM -- overwritten on each provision run; do not edit"',
         '    echo ""',
         '    for username in "$@"; do',
         '      case "$username" in',
@@ -425,11 +425,42 @@ def generate_provision_script(server_group, request=None):
     ])
 
     if base_url:
-        lines.extend([
-            "# --- Heartbeat ---",
-            f"curl -sSL -X POST {shlex.quote(base_url + '/api/heartbeat/' + token + '/')} \\",
-            '  -d "hostname=$(hostname)" &>/dev/null || true',
-        ])
+        provision_url = f"{base_url}/api/provision/{token}/"
+        safe_env_name = "".join(
+            c if c.isalnum() or c in " -_." else "-" for c in (server_group.name or "")
+        )[:80] or "unnamed"
+        lines.extend(
+            [
+                "# --- Persist this environment (replace any previous Sanctum cron) ---",
+                'SANCTUM_CRON="/etc/cron.d/sanctum"',
+                "ensure_sanctum_cron() {",
+                '  local dest="$SANCTUM_CRON"',
+                "  local tmp",
+                "  tmp=$(mktemp)",
+                "  {",
+                '    echo "# MANAGED BY SANCTUM -- rewritten on each provision run; do not edit"',
+                f'    echo "# environment: {safe_env_name}"',
+                f'    echo "*/5 * * * * root curl -sSL {provision_url} | bash"',
+                "    echo",
+                '  } > "$tmp"',
+                '  chmod 644 "$tmp"',
+                '  if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then',
+                '    rm -f "$tmp"',
+                '    log "OK cron already current $dest"',
+                "    return 0",
+                "  fi",
+                '  chown root:root "$tmp"',
+                '  mv "$tmp" "$dest"',
+                '  chmod 644 "$dest"',
+                f'  log "CRON wrote $dest ({safe_env_name})"',
+                "}",
+                "ensure_sanctum_cron || true",
+                "",
+                "# --- Heartbeat ---",
+                f"curl -sSL -X POST {shlex.quote(base_url + '/api/heartbeat/' + token + '/')} \\",
+                '  -d "hostname=$(hostname)" &>/dev/null || true',
+            ]
+        )
 
     lines.append("")
     return "\n".join(lines)

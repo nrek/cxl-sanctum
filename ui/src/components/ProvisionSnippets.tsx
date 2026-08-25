@@ -37,9 +37,11 @@ export default function ProvisionSnippets({
         <CopyButton text={oneShot} />
       </div>
       <p className="mb-1 text-xs font-medium text-sanctum-muted">
-        Cron (recommended) — save as{" "}
+        Cron — bootstrap writes{" "}
         <code className="text-sanctum-mist">/etc/cron.d/sanctum</code>{" "}
-        (mode 0644; must end with a newline)
+        for <strong className="text-sanctum-mist">this</strong> environment
+        (replaces a previous environment&apos;s token). Copy below only to
+        verify or repair (mode 0644; must end with a newline)
       </p>
       <div className={`${blockGap} flex flex-wrap items-start gap-2`}>
         <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all rounded bg-[#0f1c24] px-2 py-1.5 font-mono text-xs text-sanctum-mist">

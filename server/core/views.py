@@ -1105,6 +1105,11 @@ def heartbeat_view(request, token):
             "ip_address": ip_address if ip_address else None,
         },
     )
+    if hostname:
+        Server.objects.filter(
+            hostname=hostname,
+            server_group__workspace_id=server_group.workspace_id,
+        ).exclude(pk=server.pk).delete()
     ServerHeartbeatLog.objects.create(server=server, recorded_at=ts)
     ServerHeartbeatLog.objects.filter(
         server_id=server.id,

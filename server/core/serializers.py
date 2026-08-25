@@ -50,6 +50,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         if not name:
             raise serializers.ValidationError("Name is required.")
         return name
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
         request = self.context.get("request")

@@ -804,6 +804,8 @@ class APITests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res["Content-Type"], "text/x-shellscript")
         self.assertIn(b"ensure_user", res.content)
+        self.assertIn(b"/etc/cron.d/sanctum", res.content)
+        self.assertIn(str(sg.provision_token).encode(), res.content)
 
     def test_provision_invalid_token(self):
         anon = APIClient()
@@ -827,6 +829,30 @@ class APITests(TestCase):
         self.assertIsNotNone(server.last_seen)
         self.assertEqual(ServerHeartbeatLog.objects.filter(server=server).count(), 1)
 
+    def test_heartbeat_detaches_hostname_from_other_groups(self):
+        prod = ServerGroup.objects.create(name="Production", workspace=self.ws)
+        pipeline = ServerGroup.objects.create(name="Pipeline", workspace=self.ws)
+        anon = APIClient()
+        anon.post(
+            f"/api/heartbeat/{prod.provision_token}/",
+            {"hostname": "box-1"},
+            format="json",
+        )
+        self.assertTrue(
+            Server.objects.filter(server_group=prod, hostname="box-1").exists()
+        )
+        anon.post(
+            f"/api/heartbeat/{pipeline.provision_token}/",
+            {"hostname": "box-1"},
+            format="json",
+        )
+        self.assertFalse(
+            Server.objects.filter(server_group=prod, hostname="box-1").exists()
+        )
+        self.assertEqual(
+            Server.objects.filter(hostname="box-1", server_group=pipeline).count(), 1
+        )
+
     def test_heartbeat_updates_existing(self):
         sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
         anon = APIClient()
@@ -842,6 +868,48 @@ class APITests(TestCase):
         )
         self.assertEqual(Server.objects.filter(server_group=sg).count(), 1)
         self.assertEqual(ServerHeartbeatLog.objects.filter(server__server_group=sg).count(), 2)
+
+    def test_provision_scripts_do_not_share_tokens_across_environments(self):
+        prod = ServerGroup.objects.create(name="Production", workspace=self.ws)
+        pipeline = ServerGroup.objects.create(name="Pipeline", workspace=self.ws)
+        Assignment.objects.create(
+            member=Member.objects.create(username="prodonly", workspace=self.ws),
+            server_group=prod,
+            role="user",
+        )
+        SSHKey.objects.create(
+            member=Member.objects.get(username="prodonly"),
+            label="k",
+            public_key="ssh-ed25519 AAAAPROD prodonly",
+        )
+        pipe_member = Member.objects.create(username="pipeonly", workspace=self.ws)
+        SSHKey.objects.create(
+            member=pipe_member,
+            label="k",
+            public_key="ssh-ed25519 AAAAPIPE pipeonly",
+        )
+        Assignment.objects.create(
+            member=pipe_member, server_group=pipeline, role="sudo"
+        )
+
+        anon = APIClient()
+        prod_script = anon.get(f"/api/provision/{prod.provision_token}/").content.decode()
+        pipe_script = anon.get(
+            f"/api/provision/{pipeline.provision_token}/"
+        ).content.decode()
+
+        self.assertIn("# Server Group: Production", prod_script)
+        self.assertIn("# Server Group: Pipeline", pipe_script)
+        self.assertIn("ensure_user prodonly", prod_script)
+        self.assertNotIn("ensure_user pipeonly", prod_script)
+        self.assertIn("ensure_user pipeonly", pipe_script)
+        self.assertNotIn("ensure_user prodonly", pipe_script)
+        self.assertIn(str(prod.provision_token), prod_script)
+        self.assertNotIn(str(pipeline.provision_token), prod_script)
+        self.assertIn(str(pipeline.provision_token), pipe_script)
+        self.assertNotIn(str(prod.provision_token), pipe_script)
+        self.assertIn("/etc/cron.d/sanctum", pipe_script)
+        self.assertIn("# environment: Pipeline", pipe_script)
 
     def test_servers_list_includes_heartbeat_rhythm(self):
         from django.utils import timezone
