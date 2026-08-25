@@ -819,16 +819,35 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         ws = get_request_workspace(self.request)
         if ws is None:
             raise ValidationError("No workspace for this account.")
-        sg = serializer.validated_data.get("server_group")
+        vd = serializer.validated_data
+        sg = vd.get("server_group")
         if sg and sg.workspace_id != ws.id:
             raise ValidationError({"server_group": "Invalid environment."})
-        team = serializer.validated_data.get("team")
-        member = serializer.validated_data.get("member")
+        team = vd.get("team")
+        member = vd.get("member")
         if team is not None and team.workspace_id != ws.id:
             raise ValidationError({"team": "Invalid team."})
         if member is not None and member.workspace_id != ws.id:
             raise ValidationError({"member": "Invalid member."})
-        serializer.save()
+        defaults = {"role": vd.get("role", Assignment.ROLE_USER)}
+        try:
+            if team is not None:
+                obj, _created = Assignment.objects.update_or_create(
+                    team=team,
+                    server_group=sg,
+                    defaults={**defaults, "member": None},
+                )
+            else:
+                obj, _created = Assignment.objects.update_or_create(
+                    member=member,
+                    server_group=sg,
+                    defaults={**defaults, "team": None},
+                )
+        except IntegrityError as exc:
+            raise ValidationError(
+                "That team or user already has an assignment on this environment."
+            ) from exc
+        serializer.instance = obj
 
 
 class AccessRequestViewSet(viewsets.ModelViewSet):

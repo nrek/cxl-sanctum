@@ -791,6 +791,22 @@ class APITests(TestCase):
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.data["role"], "sudo")
 
+    def test_assignment_post_upserts_existing_team_cell(self):
+        """Grant one cell POSTs even when the matrix already has that team+env."""
+        t = Team.objects.create(name="CXL internal", workspace=self.ws)
+        sg = ServerGroup.objects.create(name="Pipeline", workspace=self.ws)
+        Assignment.objects.create(team=t, server_group=sg, role="sudo")
+        res = self.client.post(
+            "/api/assignments/",
+            {"team": t.id, "member": None, "server_group": sg.id, "role": "user"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(Assignment.objects.filter(team=t, server_group=sg).count(), 1)
+        self.assertEqual(
+            Assignment.objects.get(team=t, server_group=sg).role, "user"
+        )
+
     def test_provision_returns_script(self):
         sg = ServerGroup.objects.create(name="prod", workspace=self.ws)
         t = Team.objects.create(name="Dev", workspace=self.ws)
