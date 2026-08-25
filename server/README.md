@@ -6,7 +6,7 @@ Open-source SSH access management: one place to manage users, teams, and SSH pub
 
 You host this API yourself alongside the companion dashboard (**`../ui/`** in the monorepo), and point your machines at your own provision URLs. Prefer not to run servers? **[sanctum.craftxlogic.com](https://sanctum.craftxlogic.com)** offers a hosted Sanctum you can try first.
 
-**What it does:** user accounts, `authorized_keys`, sudo membership, and **customer-defined supplemental Linux groups** per environment—aligned from the dashboard and applied on target hosts via `curl | bash` (typically cron).
+**What it does:** user accounts, `authorized_keys`, passwordless sudo via `/etc/sudoers.d/sanctum`, and **customer-defined supplemental Linux groups** per environment—aligned from the dashboard and applied on target hosts via `curl | bash` (typically cron).
 
 **What it deliberately doesn't do:** no agent on target servers, no heartbeat-driven group writes, no auto-creation of missing Linux groups by default, no push mechanism, no session auditing.
 
@@ -105,7 +105,7 @@ After both steps, the `dubious ownership` warning and `Permission denied` on `.g
 3. **Create a project** (e.g. a product or a client). Add **environments** (server groups) such as Development, Staging, Production—use presets or add names one by one.
 4. **Assign team access** on the project page: grant the same role on all environments at once, or grant one team/environment at a time, or edit cells in the matrix. Roles:
    - **User** — standard login, no sudo
-   - **Sudo** — login + sudo access
+   - **Sudo** — login + passwordless sudo via `/etc/sudoers.d/sanctum` (group membership alone is not enough; Sanctum users have no password)
    - **Removed** — account locked, keys stripped, renamed to `revoked:{username}` on the server
 5. **Copy the provisioning command** for each environment and run it on matching servers (or cron).
 6. **Optional:** on each environment, add **supplemental Linux groups** (e.g. `deployers`, `www-data`, `client42-deploy`) so assigned users are added to those existing groups on the next provision run. Privileged groups like `sudo` and `docker` are blocked; missing groups are skipped and logged.
@@ -157,7 +157,7 @@ The script is fully idempotent. Running it twice with no dashboard changes produ
 
 - **Creates** missing user accounts (`useradd -m -s /bin/bash`)
 - **Writes** `~/.ssh/authorized_keys` for each user (overwritten to match desired state)
-- **Adds/removes** sudo group membership based on role (supplemental groups cannot grant sudo)
+- **Writes** desired-state `/etc/sudoers.d/sanctum` with `NOPASSWD:ALL` for sudo-role users (validated with `visudo -c`); removes the drop-in when none remain. Also adds/removes the `sudo` group. Supplemental groups cannot grant sudo.
 - **Adds** active users to configured supplemental Linux groups when those groups already exist on the host
 - **Removes** removed users from Sanctum-managed supplemental groups only (unrelated local groups are preserved)
 - **Skips** missing supplemental groups (logged to `/var/log/sanctum.log`; Sanctum does not create groups by default)

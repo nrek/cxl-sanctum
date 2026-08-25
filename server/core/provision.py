@@ -67,6 +67,7 @@ def generate_provision_script(server_group, request=None):
     lines = [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
+        'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
         "",
         "# Sanctum Provisioning Script",
         f"# Server Group: {server_group.name}",
@@ -273,12 +274,16 @@ def generate_provision_script(server_group, request=None):
         '  chmod 600 "$home/.ssh/authorized_keys"',
         "",
         '  if [ "$role" = "sudo" ]; then',
-        '    if ! groups "$username" 2>/dev/null | grep -qw sudo; then',
-        '      usermod -aG sudo "$username"',
-        '      log "SUDO+ $username"',
+        '    if ! id -nG "$username" 2>/dev/null | grep -qw sudo; then',
+        '      if getent group sudo >/dev/null; then',
+        '        usermod -aG sudo "$username"',
+        '        log "SUDO+ $username"',
+        "      else",
+        '        log "SKIP sudo group missing; sudoers drop-in still applied for $username"',
+        "      fi",
         "    fi",
         "  else",
-        '    if groups "$username" 2>/dev/null | grep -qw sudo; then',
+        '    if id -nG "$username" 2>/dev/null | grep -qw sudo; then',
         '      gpasswd -d "$username" sudo 2>/dev/null || true',
         '      log "SUDO- $username"',
         "    fi",
@@ -287,6 +292,56 @@ def generate_provision_script(server_group, request=None):
         '  usermod -U "$username" 2>/dev/null || true',
         "",
         '  ensure_supplemental_groups "$username" ${MANAGED_SUPPLEMENTAL_GROUPS[@]+"${MANAGED_SUPPLEMENTAL_GROUPS[@]}"}',
+        "}",
+        "",
+        'SANCTUM_SUDOERS="/etc/sudoers.d/sanctum"',
+        "",
+        "write_sanctum_sudoers() {",
+        "  local visudo_bin=\"\" tmp username",
+        '  if [ -x /usr/sbin/visudo ]; then',
+        '    visudo_bin=/usr/sbin/visudo',
+        '  elif command -v visudo >/dev/null 2>&1; then',
+        '    visudo_bin=$(command -v visudo)',
+        "  fi",
+        '  if (("$#" == 0)); then',
+        '    if [ -f "$SANCTUM_SUDOERS" ]; then',
+        '      rm -f "$SANCTUM_SUDOERS"',
+        '      log "SUDOERS removed $SANCTUM_SUDOERS (no sudo users)"',
+        "    else",
+        '      log "OK sudoers drop-in absent (no sudo users)"',
+        "    fi",
+        "    return 0",
+        "  fi",
+        '  if [ -z "$visudo_bin" ]; then',
+        '    log "SUDOERS_FAILED visudo not found; leaving previous drop-in in place"',
+        "    return 1",
+        "  fi",
+        "  mkdir -p /etc/sudoers.d",
+        '  tmp=$(mktemp /etc/sudoers.d/.sanctum.XXXXXX)',
+        "  {",
+        '    echo "# MANAGED BY SANCTUM — overwritten on each provision run; do not edit"',
+        '    echo ""',
+        '    for username in "$@"; do',
+        '      case "$username" in',
+        '        *[!a-zA-Z0-9_-]*|"")',
+        '          log "SKIP sudoers invalid username $username"',
+        "          continue",
+        "          ;;",
+        "      esac",
+        '      printf "%s ALL=(ALL:ALL) NOPASSWD:ALL\\n" "$username"',
+        "    done",
+        '  } > "$tmp"',
+        '  chmod 440 "$tmp"',
+        '  chown root:root "$tmp"',
+        '  if "$visudo_bin" -c -f "$tmp" >/dev/null 2>>"$LOG"; then',
+        '    mv "$tmp" "$SANCTUM_SUDOERS"',
+        '    chmod 440 "$SANCTUM_SUDOERS"',
+        '    log "SUDOERS wrote $SANCTUM_SUDOERS"',
+        "  else",
+        '    log "SUDOERS_INVALID; previous drop-in left in place"',
+        '    rm -f "$tmp"',
+        "    return 1",
+        "  fi",
         "}",
         "",
         "# --- Managed supplemental groups (Sanctum-owned) ---",
@@ -299,6 +354,7 @@ def generate_provision_script(server_group, request=None):
     lines.append(")")
     lines.extend(["", "# --- Desired State ---", ""])
 
+    sudo_usernames = []
     for _mid, (member, role, keys) in sorted(
         member_roles.items(), key=lambda x: x[1][0].username
     ):
@@ -311,6 +367,8 @@ def generate_provision_script(server_group, request=None):
                     f"# SKIPPED {member.username}: no SSH keys configured"
                 )
                 continue
+            if role == "sudo":
+                sudo_usernames.append(member.username)
             lines.append(
                 f"ensure_user {shlex.quote(member.username)} {shlex.quote(role)} \\"
             )
@@ -321,6 +379,17 @@ def generate_provision_script(server_group, request=None):
         elif role == "removed":
             lines.append(f"revoke_user {shlex.quote(member.username)}")
             lines.append("")
+
+    lines.extend(["# --- Sudoers (NOPASSWD; Sanctum users have no password) ---", "SANCTUM_SUDO_USERS=("])
+    for username in sudo_usernames:
+        lines.append(f"  {shlex.quote(username)}")
+    lines.extend(
+        [
+            ")",
+            'write_sanctum_sudoers ${SANCTUM_SUDO_USERS[@]+"${SANCTUM_SUDO_USERS[@]}"} || true',
+            "",
+        ]
+    )
 
     known_usernames = sorted(
         {member.username for _mid, (member, _role, _keys) in member_roles.items()}

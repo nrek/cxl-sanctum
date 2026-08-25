@@ -148,6 +148,31 @@ class ProvisionScriptTests(TestCase):
         script = generate_provision_script(self.sg)
         self.assertIn("ensure_user alice sudo", script)
 
+    def test_sudo_role_writes_sudoers_dropin(self):
+        """Sudo role must emit visudo-backed /etc/sudoers.d/sanctum, not only usermod -aG sudo."""
+        Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
+        Assignment.objects.create(team=self.team_ops, server_group=self.sg, role="sudo")
+
+        script = generate_provision_script(self.sg)
+        self.assertIn("/etc/sudoers.d/sanctum", script)
+        self.assertIn("NOPASSWD:ALL", script)
+        self.assertIn("write_sanctum_sudoers", script)
+        start = script.index("SANCTUM_SUDO_USERS=(")
+        end = script.index(")", start)
+        sudo_list = script[start:end]
+        self.assertIn("bob", sudo_list)
+        self.assertNotIn("alice", sudo_list)
+
+    def test_user_role_clears_sudoers_list(self):
+        Assignment.objects.create(team=self.team_dev, server_group=self.sg, role="user")
+
+        script = generate_provision_script(self.sg)
+        start = script.index("SANCTUM_SUDO_USERS=(")
+        end = script.index(")", start)
+        sudo_list = script[start:end]
+        self.assertNotIn("alice", sudo_list)
+        self.assertIn("write_sanctum_sudoers", script)
+
     def test_empty_server_group(self):
         script = generate_provision_script(self.sg)
         self.assertIn("#!/usr/bin/env bash", script)
@@ -373,6 +398,12 @@ class APITests(TestCase):
         self.assertEqual(res.status_code, 403)
         res = member_client.get(f"/api/projects/{hidden.id}/")
         self.assertEqual(res.status_code, 404)
+        res = member_client.post(
+            "/api/projects/",
+            {"name": "Not allowed", "description": ""},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)
 
     def test_workspace_admin_role_sees_billing_read_flags(self):
         admin_user = User(username="workspace-admin", email="wa@example.com")
@@ -1088,6 +1119,17 @@ class APITests(TestCase):
 
         res = self.client.delete(f"/api/projects/{pid}/")
         self.assertEqual(res.status_code, 204)
+
+    def test_project_create_rejects_duplicate_workspace_name(self):
+        res = self.client.post(
+            "/api/projects/", {"name": "Acme", "description": "First"}, format="json"
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        res = self.client.post(
+            "/api/projects/", {"name": "Acme", "description": "Dup"}, format="json"
+        )
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn("name", res.data)
 
     def test_projects_list_environment_worst_status(self):
         from datetime import timedelta

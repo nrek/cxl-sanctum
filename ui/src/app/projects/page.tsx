@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import StatusDot from "@/components/StatusDot";
 import {
   apiFetch,
+  ApiError,
   createAccessRequest,
   getApiBase,
   Project,
@@ -20,6 +21,46 @@ import ViewToggle from "@/components/ViewToggle";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { isAdminRole } from "@/lib/roles";
+
+function formatProjectSaveError(err: unknown): string {
+  if (err instanceof ApiError) {
+    const raw = err.message.trim();
+    try {
+      const parsed = JSON.parse(raw) as {
+        detail?: unknown;
+        name?: unknown;
+      };
+      if (typeof parsed.detail === "string" && parsed.detail.trim()) {
+        return parsed.detail;
+      }
+      if (typeof parsed.name === "string" && parsed.name.trim()) {
+        return parsed.name;
+      }
+      if (Array.isArray(parsed.name) && parsed.name.length > 0) {
+        return parsed.name.map(String).join(" ");
+      }
+    } catch {
+      if (raw && raw.length < 300 && !raw.startsWith("<")) {
+        return raw;
+      }
+    }
+    if (err.status === 403) {
+      return "You need a workspace owner or admin role to create or edit projects.";
+    }
+  }
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return "Could not save the project.";
+}
+
+function projectsEmptyMessage(isAdmin: boolean, loading: boolean): string {
+  if (loading) return "Loading projects…";
+  if (isAdmin) {
+    return "No projects yet. Create one to group Development, Staging, and Production servers.";
+  }
+  return "No projects assigned to you yet. Ask a workspace owner or admin to create a project or grant access.";
+}
 
 function projectWorstStatusPresentation(
   status: ProjectEnvironmentWorstStatus | undefined
@@ -65,7 +106,7 @@ function ProjectTitleWithStatusDot({
 }
 
 export default function ProjectsPage() {
-  const { workspace, refresh } = useWorkspace();
+  const { workspace, refresh, loading } = useWorkspace();
   const [projects, setProjects] = useState<Project[]>([]);
   const [ungrouped, setUngrouped] = useState<ServerGroup[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -75,6 +116,8 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("all");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [deleteUngrouped, setDeleteUngrouped] = useState<ServerGroup | null>(
     null
   );
@@ -118,6 +161,7 @@ export default function ProjectsPage() {
     setEditing(null);
     setForm({ name: "", description: "", tags: [] });
     setTagDraft("");
+    setSaveError("");
     setModalOpen(true);
   };
 
@@ -129,6 +173,7 @@ export default function ProjectsPage() {
       tags: p.tags ?? [],
     });
     setTagDraft("");
+    setSaveError("");
     setModalOpen(true);
   };
 
@@ -150,29 +195,37 @@ export default function ProjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      await apiFetch(`/projects/${editing.id}/`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: form.name.trim(),
-          description: form.description,
-          tags: form.tags,
-        }),
-      });
-    } else {
-      await apiFetch("/projects/", {
-        method: "POST",
-        body: JSON.stringify({
-          name: form.name.trim(),
-          description: form.description,
-          tags: form.tags,
-        }),
-      });
+    setSaveError("");
+    setSaving(true);
+    try {
+      if (editing) {
+        await apiFetch(`/projects/${editing.id}/`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: form.name.trim(),
+            description: form.description,
+            tags: form.tags,
+          }),
+        });
+      } else {
+        await apiFetch("/projects/", {
+          method: "POST",
+          body: JSON.stringify({
+            name: form.name.trim(),
+            description: form.description,
+            tags: form.tags,
+          }),
+        });
+      }
+      setModalOpen(false);
+      setEditing(null);
+      setForm({ name: "", description: "", tags: [] });
+      load();
+    } catch (err: unknown) {
+      setSaveError(formatProjectSaveError(err));
+    } finally {
+      setSaving(false);
     }
-    setModalOpen(false);
-    setEditing(null);
-    setForm({ name: "", description: "", tags: [] });
-    load();
   };
 
   const handleRequestAccess = async (project: Project) => {
@@ -364,8 +417,7 @@ export default function ProjectsPage() {
           ))}
           {visibleProjects.length === 0 && (
             <p className="col-span-full py-8 text-center text-sanctum-muted">
-              No projects yet. Create one to group Development, Staging, and
-              Production servers.
+              {projectsEmptyMessage(isAdmin, loading)}
             </p>
           )}
         </div>
@@ -450,8 +502,7 @@ export default function ProjectsPage() {
           ))}
           {visibleProjects.length === 0 && (
             <p className="py-8 text-center text-sanctum-muted">
-              No projects yet. Create one to group Development, Staging, and
-              Production servers.
+              {projectsEmptyMessage(isAdmin, loading)}
             </p>
           )}
         </div>
@@ -523,6 +574,14 @@ export default function ProjectsPage() {
         title={editing ? "Edit project" : "New Project"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          {saveError ? (
+            <div
+              className="rounded-md border border-danger/40 bg-danger-surface px-4 py-2 text-sm text-danger"
+              role="alert"
+            >
+              {saveError}
+            </div>
+          ) : null}
           <div>
             <label className="mb-1 block text-sm font-medium text-sanctum-mist">
               Name
@@ -611,16 +670,16 @@ export default function ProjectsPage() {
             >
               Cancel
             </button>
-            <button type="submit" className="btn-primary">
+            <button type="submit" disabled={saving} className="btn-primary">
               {editing ? (
                 <>
                   <i className="fa-solid fa-check" aria-hidden />
-                  Save
+                  {saving ? "Saving…" : "Save"}
                 </>
               ) : (
                 <>
                   <i className="fa-solid fa-circle-plus" aria-hidden />
-                  Create
+                  {saving ? "Creating…" : "Create"}
                 </>
               )}
             </button>

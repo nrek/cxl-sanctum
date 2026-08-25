@@ -45,6 +45,28 @@ class ProjectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def validate_name(self, value):
+        name = (value or "").strip()
+        if not name:
+            raise serializers.ValidationError("Name is required.")
+        return name
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        request = self.context.get("request")
+        ws = get_request_workspace(request) if request is not None else None
+        name = attrs.get("name")
+        if ws is not None and name:
+            qs = Project.objects.filter(workspace=ws, name=name)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {
+                        "name": "A project with this name already exists in this workspace."
+                    }
+                )
+        return attrs
+
     def validate_tags(self, value):
         if value in (None, ""):
             return []

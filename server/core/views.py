@@ -7,6 +7,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from django.db import IntegrityError
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -365,7 +366,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         ws = get_request_workspace(self.request)
         if ws is None:
             raise ValidationError("No workspace for this account.")
-        serializer.save(workspace=ws)
+        try:
+            serializer.save(workspace=ws)
+        except IntegrityError:
+            raise ValidationError(
+                {"name": "A project with this name already exists in this workspace."}
+            )
 
     @action(detail=True, methods=["get"], url_path="access")
     def access(self, request, pk=None):
