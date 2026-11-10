@@ -8,7 +8,7 @@ import { isPublicRoute } from "@/lib/routes";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Tooltip from "@/components/Tooltip";
-import { canViewBilling, isAdminRole } from "@/lib/roles";
+import { canViewBilling, isAdminRole, isOwnerRole } from "@/lib/roles";
 
 const BASE_NAV: { href: string; label: string; glyph: string }[] = [
   { href: "/dashboard", label: "Dashboard", glyph: "▦" },
@@ -21,6 +21,10 @@ const ADMIN_NAV: { href: string; label: string; glyph: string }[] = [
   { href: "/keys", label: "SSH Keys", glyph: "⚷" },
 ];
 
+const OWNER_NAV: { href: string; label: string; glyph: string }[] = [
+  { href: "/admins", label: "Admins", glyph: "♛" },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { workspace } = useWorkspace();
@@ -29,9 +33,14 @@ export default function Sidebar() {
   if (isPublicRoute(pathname)) return null;
 
   const isAdmin = isAdminRole(workspace);
+  const isOwner = isOwnerRole(workspace);
   const showPlanCard = canViewBilling(workspace);
   const pendingRequests = workspace?.pending_access_requests ?? 0;
-  const nav = isAdmin ? [...BASE_NAV, ...ADMIN_NAV] : BASE_NAV;
+  const nav = [
+    ...BASE_NAV,
+    ...(isAdmin ? ADMIN_NAV : []),
+    ...(isOwner ? OWNER_NAV : []),
+  ];
 
   const navClass = (active: boolean) =>
     active ? "nav-item nav-item-active" : "nav-item hover:bg-white/5 hover:text-sanctum-mist";

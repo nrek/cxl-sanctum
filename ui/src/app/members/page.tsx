@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   apiFetch,
+  inviteMember,
   Member,
   patchMemberSSHKey,
   SSHKey,
@@ -64,6 +65,15 @@ export default function MembersPage() {
     setEditing(null);
     setForm({ username: "", email: "", team_ids: [] });
     setModalOpen(true);
+  };
+
+  const emailLoginLink = async (member: Member) => {
+    if (!member.email) return;
+    try {
+      await inviteMember(member.id);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not send the login link.");
+    }
   };
 
   const openEdit = (m: Member) => {
@@ -295,6 +305,15 @@ export default function MembersPage() {
                   <p className="text-sm text-sanctum-muted">
                     {m.email || "No email"}
                   </p>
+                  {m.email ? (
+                    <button
+                      type="button"
+                      onClick={() => void emailLoginLink(m)}
+                      className="mt-1 text-xs font-semibold text-sanctum-accent hover:text-sanctum-mist"
+                    >
+                      Email login link
+                    </button>
+                  ) : null}
                 </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5 -mr-1 -mt-1">
@@ -412,6 +431,15 @@ export default function MembersPage() {
                   <p className="text-sm text-sanctum-muted">
                     {m.email || "No email"}
                   </p>
+                  {m.email ? (
+                    <button
+                      type="button"
+                      onClick={() => void emailLoginLink(m)}
+                      className="mt-1 text-xs font-semibold text-sanctum-accent hover:text-sanctum-mist"
+                    >
+                      Email login link
+                    </button>
+                  ) : null}
                   {m.access_revoked ? (
                     <p className="mt-2 text-xs text-sanctum-muted">
                       Removed from all teams. Environments show under &quot;Globally
